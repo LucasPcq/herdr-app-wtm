@@ -42,12 +42,13 @@ export default class Wtm extends View {
     this.backoff = null;
     this.inbox = null;
     this.wtm = null;
+    this.runId = null;
     this.watching = false;
     this.draining = false;
     this.drainAgain = false;
     cx.spawn(async (cx) => this.start(cx));
     cx.spawn(async (cx) => this.listenForCommands(cx));
-    cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.drain(cx)));
+    cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.check(cx)));
   }
 
   async start(cx) {
@@ -61,7 +62,7 @@ export default class Wtm extends View {
     try {
       const made = await exec("mkdir", ["-p", dir]);
       if (made.code !== 0) throw new Error(made.stderr.trim() || `cannot create ${dir}`);
-      await ensureWorker({ hc, inbox: dir, wtm });
+      this.runId = await ensureWorker({ hc, inbox: dir, wtm, run: Math.random().toString(36).slice(2, 10) });
       this.inbox = createInbox({ dir, copyId: this.copyId, io: hostIo });
       await this.inbox.releaseStale();
     } catch (error) {
@@ -91,11 +92,19 @@ export default class Wtm extends View {
     }
   }
 
+  // A worker that died without its exit marker (killed, core lost) is only seen here.
+  async check(cx) {
+    if (this.state === STATE.listening && !(await workerRunning({ hc, wtm: this.wtm }))) return this.start(cx);
+    await this.drain(cx);
+  }
+
   async watch(cx, dir) {
     this.watching = true;
     try {
       for (;;) {
         await watchFolder(dir);
+        // Touching cx ends this loop once a reload replaced the copy.
+        cx.notify();
         await this.drain(cx);
       }
     } catch (error) {
@@ -131,7 +140,7 @@ export default class Wtm extends View {
 
   async handle(event, cx) {
     if (!event) return;
-    if (event.type === EXIT_EVENT) return this.exited(event.code, cx);
+    if (event.type === EXIT_EVENT) return this.exited(event, cx);
     if (event.type === EVENT.ready) {
       this.backoff = null;
       return;
@@ -144,10 +153,10 @@ export default class Wtm extends View {
     }
   }
 
-  async exited(code, cx) {
-    // A marker left in the backlog by a worker already replaced.
-    if (await workerRunning({ hc, wtm: this.wtm })) return;
-    if (isFinal(code)) return this.set(STATE.streamStopped, cx, code);
+  async exited(event, cx) {
+    // A marker from a run already replaced.
+    if (event.run !== this.runId) return;
+    if (isFinal(event.code)) return this.set(STATE.streamStopped, cx, event.code);
     this.backoff = nextBackoff(this.backoff);
     this.set(STATE.starting, cx);
     cx.timer.after(this.backoff, (cx) => cx.spawn(async (cx) => this.start(cx)));
@@ -155,7 +164,10 @@ export default class Wtm extends View {
 
   async listenForCommands(cx) {
     for (;;) {
-      if ((await nextCommand()) !== COMMAND.stop) continue;
+      const command = await nextCommand();
+      // Touching cx ends this loop once a reload replaced the copy.
+      cx.notify();
+      if (command !== COMMAND.stop) continue;
       await stopWorker({ hc });
       closeOverlay(props().overlay);
       cx.notify();

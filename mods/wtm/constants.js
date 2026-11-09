@@ -6,7 +6,9 @@ export const WINDOW_KEY = "wtm";
 export const WORKER_NAME = "herdr-app-wtm";
 export const WORKER_LABEL = "herdr-app-wtm.script";
 // Bump whenever worker.js's SCRIPT changes, so an updated mod replaces a running worker.
-export const SCRIPT_VERSION = "1";
+export const SCRIPT_VERSION = "2";
+// Each worker run's id, also carried by its exit marker: a marker from another run is stale.
+export const RUN_LABEL = "herdr-app-wtm.run";
 
 // Relative to the home folder.
 export const STATE_DIR = ".local/state/herdr-app-wtm";

@@ -8,7 +8,7 @@ export async function buildWorld(event, cache) {
   const allPanes = panes();
   const local = spaces()
     .filter((space) => space.machine == null)
-    .map((space) => ({ id: space.id, place: placeOf(space, allPanes) }));
+    .map((space) => ({ id: space.id, folder: space.folder, place: placeOf(space, allPanes) }));
   return {
     spaces: local,
     focusedSpace: focused()?.space ?? null,

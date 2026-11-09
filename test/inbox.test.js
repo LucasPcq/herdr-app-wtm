@@ -68,3 +68,11 @@ test("releaseStale gives a dead copy's claims back", async () => {
   await inbox.releaseStale();
   assert.deepEqual((await readdir(dir)).sort(), ["4.json", "5.json.live.995000"]);
 });
+
+test("take first gives back a dead copy's claims, then takes them", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "inbox-"));
+  await writeFile(join(dir, "4.json.dead.1000"), '{"type":"a"}');
+  const inbox = createInbox({ dir, copyId: "me", io: nodeIo(() => 1_000_000) });
+  const taken = await inbox.take();
+  assert.deepEqual(taken.map((t) => t.event), [{ type: "a" }]);
+});

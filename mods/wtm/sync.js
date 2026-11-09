@@ -13,9 +13,11 @@ export function decide(event, world) {
     return [{ kind: "open", folder: worktree.path, reselect: world.focusedSpace ?? null }];
   }
 
+  // Only a space made on the worktree closes: one made elsewhere (the main
+  // checkout's, with its agents) whose terminal went into it stays.
   if (event.type === EVENT.removed) {
     if (world.pathExists) return [];
-    return there.map((space) => ({ kind: "close", id: space.id }));
+    return there.filter((space) => space.folder && inside(space.folder, worktree.path)).map((space) => ({ kind: "close", id: space.id }));
   }
 
   return [];

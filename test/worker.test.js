@@ -17,7 +17,7 @@ async function fakeWtm(body) {
 test("the script turns each line into one numbered file, then an exit marker", async () => {
   const inbox = await mkdtemp(join(tmpdir(), "inbox-"));
   const wtm = await fakeWtm(`printf '{"args":"%s","pwd":"%s"}\\n' "$*" "$(pwd)"\necho '{"type":"a"}'\necho 'not json'\nprintf '{"type":"b"}'\nexit 7`);
-  const run = spawnSync("sh", ["-c", SCRIPT, "sh", inbox, wtm], { encoding: "utf8" });
+  const run = spawnSync("sh", ["-c", SCRIPT, "sh", inbox, wtm, "r42"], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
 
   const names = await readdir(inbox);
@@ -29,19 +29,19 @@ test("the script turns each line into one numbered file, then an exit marker", a
     '{"type":"a"}\n',
     "not json\n",
     '{"type":"b"}\n',
-    '{"type":"herdr-app-wtm.exit","code":7}\n',
+    '{"type":"herdr-app-wtm.exit","code":7,"run":"r42"}\n',
   ]);
 });
 
 test("runArgs starts a named, labelled, hidden worker that outlives its parent", () => {
-  const args = runArgs({ inbox: "/home/u/.local/state/herdr-app-wtm/inbox", wtm: "/bin/wtm" });
-  assert.deepEqual(args.slice(0, 8), ["run", "--bg", "--name", "herdr-app-wtm", "--outlive-parent", "--label", "herdr-app-wtm.script=1", "--"]);
-  assert.deepEqual(args.slice(8, 10), ["sh", "-c"]);
-  assert.deepEqual(args.slice(11), ["sh", "/home/u/.local/state/herdr-app-wtm/inbox", "/bin/wtm"]);
+  const args = runArgs({ inbox: "/home/u/.local/state/herdr-app-wtm/inbox", wtm: "/bin/wtm", run: "r42" });
+  assert.deepEqual(args.slice(0, 10), ["run", "--bg", "--name", "herdr-app-wtm", "--outlive-parent", "--label", "herdr-app-wtm.script=2", "--label", "herdr-app-wtm.run=r42", "--"]);
+  assert.deepEqual(args.slice(10, 12), ["sh", "-c"]);
+  assert.deepEqual(args.slice(13), ["sh", "/home/u/.local/state/herdr-app-wtm/inbox", "/bin/wtm", "r42"]);
 });
 
 test("shouldReuse only a live worker of this script version on this wtm", () => {
-  const live = { state: "live", labels: { "herdr-app-wtm.script": "1" }, argv: ["sh", "-c", "…", "sh", "/inbox", "/bin/wtm"] };
+  const live = { state: "live", labels: { "herdr-app-wtm.script": "2" }, argv: ["sh", "-c", "…", "sh", "/inbox", "/bin/wtm", "r1"] };
   assert.equal(shouldReuse(live, "/bin/wtm"), true);
   assert.equal(shouldReuse({ ...live, state: "finished" }, "/bin/wtm"), false);
   assert.equal(shouldReuse({ ...live, labels: { "herdr-app-wtm.script": "0" } }, "/bin/wtm"), false);
@@ -73,14 +73,14 @@ function fakeHc(answers) {
 }
 
 test("ensureWorker reuses a matching worker", async () => {
-  const info = { state: "live", labels: { "herdr-app-wtm.script": "1" }, argv: ["/bin/wtm"] };
+  const info = { state: "live", labels: { "herdr-app-wtm.script": "2", "herdr-app-wtm.run": "old" }, argv: ["/bin/wtm", "old"] };
   const { hc, calls } = fakeHc({ get: { code: 0, stdout: JSON.stringify(info), stderr: "" } });
-  await ensureWorker({ hc, inbox: "/i", wtm: "/bin/wtm" });
+  assert.equal(await ensureWorker({ hc, inbox: "/i", wtm: "/bin/wtm", run: "new" }), "old");
   assert.deepEqual(calls, ["get herdr-app-wtm"]);
 });
 
 test("ensureWorker replaces an outdated live worker", async () => {
-  const info = { state: "live", labels: { "herdr-app-wtm.script": "0" }, argv: ["/bin/wtm"] };
+  const info = { state: "live", labels: { "herdr-app-wtm.script": "0" }, argv: ["/bin/wtm", "r1"] };
   const { hc, calls } = fakeHc({ get: { code: 0, stdout: JSON.stringify(info), stderr: "" } });
   await ensureWorker({ hc, inbox: "/i", wtm: "/bin/wtm" });
   assert.deepEqual(calls, ["get herdr-app-wtm", "kill herdr-app-wtm", "rm herdr-app-wtm", "run --bg"]);
@@ -88,7 +88,7 @@ test("ensureWorker replaces an outdated live worker", async () => {
 
 test("ensureWorker starts one when none exists", async () => {
   const { hc, calls } = fakeHc({ get: { code: 3, stdout: "", stderr: "not found" } });
-  await ensureWorker({ hc, inbox: "/i", wtm: "/bin/wtm" });
+  assert.equal(await ensureWorker({ hc, inbox: "/i", wtm: "/bin/wtm", run: "new" }), "new");
   assert.deepEqual(calls, ["get herdr-app-wtm", "run --bg"]);
 });
 
@@ -104,7 +104,7 @@ test("stopWorker kills then removes the worker", async () => {
 });
 
 test("workerRunning is true only while a matching worker is live", async () => {
-  const info = { state: "live", labels: { "herdr-app-wtm.script": "1" }, argv: ["/bin/wtm"] };
+  const info = { state: "live", labels: { "herdr-app-wtm.script": "2" }, argv: ["/bin/wtm", "r1"] };
   assert.equal(await workerRunning({ hc: fakeHc({ get: { code: 0, stdout: JSON.stringify(info), stderr: "" } }).hc, wtm: "/bin/wtm" }), true);
   const done = { ...info, state: "finished" };
   assert.equal(await workerRunning({ hc: fakeHc({ get: { code: 0, stdout: JSON.stringify(done), stderr: "" } }).hc, wtm: "/bin/wtm" }), false);

@@ -29,14 +29,18 @@ export function parse(text) {
 // never handle the same event. `io` is the host's file access: move resolves
 // false when the file is gone (another copy took it).
 export function createInbox({ dir, copyId, io }) {
-  return {
-    async releaseStale() {
-      for (const { from, to } of staleClaims(await io.list(dir), io.now())) {
-        await io.move(`${dir}/${from}`, `${dir}/${to}`);
-      }
-    },
+  async function releaseStale() {
+    for (const { from, to } of staleClaims(await io.list(dir), io.now())) {
+      await io.move(`${dir}/${from}`, `${dir}/${to}`);
+    }
+  }
 
+  return {
+    releaseStale,
+
+    // Releases first: a copy that died mid-batch left claims no start() may come to free.
     async take() {
+      await releaseStale();
       const taken = [];
       for (const name of pending(await io.list(dir))) {
         const path = `${dir}/${name}.${copyId}.${io.now()}`;
