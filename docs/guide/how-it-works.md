@@ -24,6 +24,15 @@ On `wtm clean` or `wtm prune`, a space closes when it was made on the removed wo
 - a space whose folder is still on disk;
 - a space on another machine.
 
+## Syncing what is already there
+
+Events only cover changes made while the worker runs. To catch up with worktrees created or removed before, double-click the button (or run `herdr-app do wtm.sync`):
+
+- every local space whose folder and first terminal's folder are both gone closes — a removed worktree's, but also any other space on a deleted folder;
+- the stream restarts, and wtm sends a fresh list of every repository's worktrees: each one without a space opens, under the same rules as `wtm create`.
+
+The dot turns grey for the moment the stream restarts. Nothing is opened on its own when the app starts: only on a double-click.
+
 ## The button
 
 `● wtm` in the top bar, next to Files and Changes. The dot says the state:
@@ -34,11 +43,11 @@ On `wtm clean` or `wtm prune`, a space closes when it was made on the removed wo
 | grey | starting, or restarting after the stream stopped |
 | red | sync is down; a notification said why: wtm not found, wtm too old, the stream stopped (an event newer than wtm), or an error |
 
-Click a red button to retry once the cause is fixed. Otherwise a press drags it; Herdr remembers where you drop it.
+Rest the pointer on it for a tooltip saying the same, and what a click does. Click a red button to retry once the cause is fixed. While syncing, a double-click syncs what is already there. Otherwise a press drags it; Herdr remembers where you drop it.
 
 ## Limits
 
 - The button belongs to the layout it was opened in. On another layout, events wait until you come back, or run `herdr-app do mod.open '{"name":"wtm"}'` there too.
 - Local spaces only.
-- A worktree moved with `wtm relocate`, or removed while the worker was down, is not followed.
+- A worktree moved with `wtm relocate`, or created or removed while the worker was down, is not followed until a double-click on the button.
 - A folder reached through a symlink (`/tmp` vs `/private/tmp`) may not match its space.

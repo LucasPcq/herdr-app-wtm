@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { decide } from "../mods/wtm/sync.js";
+import { decide, replay, sweep } from "../mods/wtm/sync.js";
 
 const WT = "/dev/app.worktrees/feat";
 const created = (worktree = {}) => ({ type: "worktree.created", repo: { common_dir: "/dev/app/.git" }, worktree: { path: WT, is_main: false, ...worktree } });
@@ -79,4 +79,30 @@ test("removed never closes a space made elsewhere whose terminal went into the w
     { id: "home", place: WT, folder: "" },
   ];
   assert.deepEqual(decide({ event: removed(), world: world({ spaces, pathExists: false }) }), []);
+});
+
+test("sweep closes every space marked gone, and only those", () => {
+  const spaces = [
+    { id: "s1", place: WT, folder: WT, gone: true },
+    { id: "s2", place: "/dev/app", folder: "/dev/app", gone: false },
+  ];
+  assert.deepEqual(sweep({ world: { spaces } }), [{ kind: "close", id: "s1" }]);
+});
+
+test("replay turns a snapshot's worktrees into created events of its repository", () => {
+  const repo = { common_dir: "/dev/app/.git" };
+  const worktrees = [{ path: "/dev/app", is_main: true }, { path: WT, is_main: false }];
+  assert.deepEqual(replay({ type: "snapshot", repo, worktrees }), [
+    { type: "worktree.created", repo, worktree: worktrees[0] },
+    { type: "worktree.created", repo, worktree: worktrees[1] },
+  ]);
+});
+
+test("replay of a snapshot without a worktree list is empty", () => {
+  for (const worktrees of [undefined, null, "x", { path: WT }]) assert.deepEqual(replay({ type: "snapshot", worktrees }), [], String(worktrees));
+});
+
+test("a replayed snapshot opens only the linked worktrees", () => {
+  const events = replay({ type: "snapshot", repo: { common_dir: "/dev/app/.git" }, worktrees: [{ path: "/dev/app", is_main: true }, { path: WT, is_main: false }] });
+  assert.deepEqual(events.flatMap((event) => decide({ event, world: world() })), [{ kind: "open", folder: WT, reselect: "main" }]);
 });

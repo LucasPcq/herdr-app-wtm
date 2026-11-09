@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+### Added
+
+- **A tooltip on the button** says what its dot means and what a click or a double-click does.
+- **Sync what is already there**: double-click the button (or run `herdr-app do wtm.sync`) to open a space for every worktree that has none and close the spaces whose folder is gone. → [How it works](docs/guide/how-it-works.md#syncing-what-is-already-there)
+
 ## [0.1.0] - 2026-11-09
 
 The first release: Herdr app spaces follow wtm's worktrees.

@@ -62,7 +62,7 @@ Near-zero comments: names and signatures carry the meaning. Write one only for a
 mods/wtm/
   constants.js   every name, path, code, timing, message — no functions
   paths.js       pure: normalize, inside, placeOf
-  sync.js        pure: decide({ event, world }) → actions
+  sync.js        pure: decide({ event, world }), replay(snapshot), sweep({ world }) → actions
   anchor.js      pure: where the button opens, from the window's size and style.js
   inbox.js       claim, read, remove event files — pure helpers, I/O injected
   worker.js      the hc worker: its sh script, start, reuse, stop — hc injected

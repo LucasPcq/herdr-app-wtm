@@ -24,13 +24,13 @@ service copy: take (claim by rename) → decide({ event, world }) → space.new 
 | --- | --- |
 | `constants.js` | every name, path, version, exit code, timing, event type, state and message |
 | `paths.js` | `normalize`, `inside({ path, dir })`, `placeOf({ space, panes })` |
-| `sync.js` | `decide({ event, world })` → `{ kind: "open", folder, reselect }` or `{ kind: "close", id }` |
+| `sync.js` | `decide({ event, world })` → `{ kind: "open", folder, reselect }` or `{ kind: "close", id }`; `replay(snapshot)` → created events; `sweep({ world })` → close actions |
 | `anchor.js` | `anchor({ window, pill, position })` → `{ x, y }` |
 | `inbox.js` | `pending`, `staleClaims`, `parse`, `createInbox({ dir, copyId, io })` → `take`, `done`, `releaseStale` |
 | `worker.js` | `SCRIPT`, `runArgs`, `shouldReuse`, `nextBackoff`, `isFinal`, `ensureWorker`, `workerRunning`, `stopWorker` |
 | `style.js` | `style(theme)` → the button's tokens: size, colours by theme name, labels, `position` |
-| `world.js` | `buildWorld({ event, cache })`: local spaces with their place and folder, the focused space, whether the worktree's folder exists, whether its repository is shown |
-| `main.js` | the `View`: launcher vs service copy, startup, the drain loop, exit handling, `stop`, the button |
+| `world.js` | `buildWorld({ event, cache })`: local spaces with their place and folder, the focused space, whether the worktree's folder exists, whether its repository is shown; `buildSweepWorld()`: local spaces, each `gone` when its folder and place are both missing |
+| `main.js` | the `View`: launcher vs service copy, startup, the drain loop, exit handling, `stop`, `sync`, the button |
 
 ## Why each piece is there
 
@@ -60,7 +60,8 @@ Each comes from a Herdr app limit, observed in a running app:
 
 - `worktree.created` opens a space when the worktree is linked, its folder exists, its repository is shown (a local space's place has the event's `common_dir` as git common dir) and no local space's place is inside it. The previously focused space is selected again.
 - `worktree.removed` closes each local space whose place is inside the worktree **and whose folder is inside it**, when the worktree is linked and its folder is gone. A space made elsewhere whose terminal went into the worktree (the main checkout's, with its agents) stays.
-- Everything else is ignored. Spaces on other machines are never matched.
+- **Resync** (a double-click on the button, or the `sync` command): `sweep` closes each local space whose folder and place are both gone, then the worker is stopped and started again; wtm opens the new stream on a `snapshot` per repository, and until its `ready` line `replay` turns each into `worktree.created` events for `decide`. The stopped run's id is dropped first, so its exit marker schedules no restart. A double-click, not a click: a press drags the button, and a click could end a drag.
+- Everything else is ignored, `snapshot` included outside a resync. Spaces on other machines are never matched.
 
 ## Testing
 

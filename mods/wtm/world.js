@@ -5,16 +5,26 @@ import { normalize, placeOf } from "./paths.js";
 // What decide() needs to know about the window for one event. `cache` maps a
 // folder to its repository's git common dir (null outside git), for the copy's life.
 export async function buildWorld({ event, cache }) {
-  const allPanes = panes();
-  const local = spaces()
-    .filter((space) => space.machine == null)
-    .map((space) => ({ id: space.id, folder: space.folder, place: placeOf({ space, panes: allPanes }) }));
+  const local = localSpaces();
   return {
     spaces: local,
     focusedSpace: focused()?.space ?? null,
     pathExists: await exists(event.worktree.path),
     repoShown: event.type === EVENT.created && (await repoShown({ commonDir: event.repo?.common_dir, local, cache })),
   };
+}
+
+// What sweep() needs: each local space, gone when its folder and its place are both missing.
+export async function buildSweepWorld() {
+  const local = localSpaces();
+  return { spaces: await Promise.all(local.map(async (space) => ({ ...space, gone: Boolean(space.folder) && !(await exists(space.folder)) && !(await exists(space.place)) }))) };
+}
+
+function localSpaces() {
+  const allPanes = panes();
+  return spaces()
+    .filter((space) => space.machine == null)
+    .map((space) => ({ id: space.id, folder: space.folder, place: placeOf({ space, panes: allPanes }) }));
 }
 
 // exec, not fs: fs reads only inside the home folder, a worktree may live anywhere.
