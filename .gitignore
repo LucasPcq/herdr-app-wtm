@@ -1,0 +1,5 @@
+mods/wtm/*.d.ts
+mods/wtm/jsconfig.json
+docs/superpowers/
+.superpowers/
+node_modules/
