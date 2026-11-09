@@ -1,46 +1,93 @@
 # CLAUDE.md — herdr-app-wtm
 
-herdr-app-wtm is a [Herdr app](https://herdr.dev) mod for [wtm](https://github.com/LucasPcq/wtm): spaces follow wtm's worktrees. wtm is the product; this mod is one of its consumers and reads only wtm's generic integration contract (`wtm events --output json`, `wtm version --output json`, exit codes). A need wtm cannot meet goes to wtm as a generic feature; a need the Herdr app cannot meet goes to Herdr the same way. Its sibling for the herdr TUI is [herdr-wtm](https://github.com/LucasPcq/herdr-wtm).
+herdr-app-wtm is a [Herdr app](https://herdr.dev) mod for [wtm](https://github.com/LucasPcq/wtm). wtm is the product; this mod is one of its consumers. It never asks wtm to know about Herdr: it reads wtm's generic integration contract (`wtm events --output json`, `wtm version --output json`, exit codes). A need wtm cannot meet goes to wtm as a generic feature; a need the Herdr app cannot meet goes to Herdr the same way. Its sibling for the herdr TUI is [herdr-wtm](https://github.com/LucasPcq/herdr-wtm).
 
-The Herdr app's mod API is documented in `~/.config/herdr-app/AGENTS.md` and its types in `~/.config/herdr-app/herdr.d.ts` and `gpui-kit.d.ts` (rewritten by the app on every start; Herdr also copies them into `mods/wtm/`, gitignored).
+The Herdr app's mod API is `~/.config/herdr-app/AGENTS.md` (the Mods section) and its types `herdr.d.ts` and `gpui-kit.d.ts` beside it. Herdr rewrites them on every start and copies the types into `mods/wtm/` (gitignored).
 
-## Layout
+**Read on demand** — `docs/dev/` is the developer reference; open the page before working on its topic:
+
+| Read | Before |
+| -- | -- |
+| [`docs/dev/architecture.md`](docs/dev/architecture.md) | adding a module or an import between modules, touching the worker, the inbox, the launcher or the button |
+| [`docs/dev/changelog.md`](docs/dev/changelog.md) | writing a `CHANGELOG.md` entry |
+| [`docs/dev/releasing.md`](docs/dev/releasing.md) | cutting a release |
+
+**Self-maintaining docs:** when a structural decision changes (new module, new layer rule, new convention), update this file and the relevant `docs/dev/` page in the same session. Standards must reflect the actual codebase.
+
+## Docs & README
+
+- **`README.md` is the product page**, not a reference: one sentence, the highlights, a short install, a row of links. Anything longer belongs in `docs/guide/`.
+- **`docs/guide/`** (user guide) and **`docs/dev/`** (developer docs) are hand-written. A behaviour a user needs to understand goes in the guide, in the same change as the behaviour.
+- **`RECIPE.md` and `preview.png`** are Herdr's gallery format (what you see, how it behaves, built from, watch out, done when): update them when what the button shows or does changes. `preview.png` is cropped from `herdr-app shot`.
+- **`CHANGELOG.md`** is in English, Keep a Changelog shape, following [`docs/dev/changelog.md`](docs/dev/changelog.md). Each release section is published as the GitHub release notes by `make release-notes VERSION=x.y.z`.
+- **Markdown:** never hard-wrap prose — one paragraph is one line.
+- `docs/superpowers/` is local and gitignored: design notes, never shipped.
+
+## 1. Immutability first
+
+`const` for every binding; `let` only for a value a loop or a branch must reassign, and then prefer extracting a function that returns it. Instance state lives on the `View` (`this.state`), never at module scope: Herdr runs a module once per source version and shares it between copies.
+
+## 2. One object for 2+ inputs
+
+A function taking 2 or more of **its own** inputs takes a single object, destructured in the signature (`decide({ event, world })`, `inside({ path, dir })`). Carriers don't count (`cx`), and symmetric pairs whose order is their meaning are exempt. A review rule, not a lint rule.
+
+## 3. Shared constants — no duplication
+
+Every name, path, version, exit code, timing, event type, state and message is defined once in `mods/wtm/constants.js`. Every visual choice (sizes, colours by theme name, labels, where the button opens) is in `mods/wtm/style.js`.
+
+## 4. Validate all external input
+
+`wtm events` lines, `wtm version --output json`, `hc get --json` and `git` output are decoded at the boundary: a line that is not a JSON object is skipped, as wtm's contract asks; an unknown event type is ignored; a missing field reads as "no".
+
+## 5. No magic strings or numbers
+
+Outside `constants.js` and `style.js`, no literal names a file, a label, a code or a duration. The argv of `wtm`, `hc`, `git`, `mv`, `rm` and `test` is the one exception: it is spelled only where that program is called.
+
+## 6. Early returns — no nesting
+
+Every error or guard returns immediately; the happy path is last.
+
+## 7. Type at the source
+
+Decode JSON into the shape the code reads and check it there (`parse` returns `null` for anything but an object); read optional fields with `?.` at the boundary, never deep in a decision.
+
+## 8. Comments — the exception, not the rule
+
+Near-zero comments: names and signatures carry the meaning. Write one only for a why (a Herdr runtime quirk, an ordering constraint, a workaround with its reference) or a one-line module comment. Architecture belongs in `docs/dev/`. When you modify a file, delete the comments in it that restate the code.
+
+## 9. Layers
 
 ```
 mods/wtm/
-  constants.js   every name, path, code, timing and message — no magic strings elsewhere
+  constants.js   every name, path, code, timing, message — no functions
   paths.js       pure: normalize, inside, placeOf
-  sync.js        pure: decide(event, world) → actions
-  inbox.js       claim/read/remove event files; pure helpers + I/O injected
-  worker.js      the hc worker: its sh script, start/reuse/stop; hc injected
+  sync.js        pure: decide({ event, world }) → actions
+  anchor.js      pure: where the button opens, from the window's size and style.js
+  inbox.js       claim, read, remove event files — pure helpers, I/O injected
+  worker.js      the hc worker: its sh script, start, reuse, stop — hc injected
+  style.js       the button's whole look and place — no logic
   world.js       host: what decide() needs about the window, for one event
-  anchor.js      pure: where the pill opens, from the window's size and style.js
-  style.js       the pill's whole look and position, by theme colour names
-  main.js        host: launcher vs service copy, startup, drain loop, the pill
+  main.js        host: launcher vs service copy, startup, drain loop, the button
 test/            node --test, no dependencies, no Herdr
 ```
 
-## Rules
-
-- `paths.js`, `anchor.js` and `sync.js` import only `./constants.js` and each other; `inbox.js` and `worker.js` take their I/O as arguments. None of them imports `herdr` or `gpui-kit`, so they run under Node.
+- `paths.js`, `sync.js` and `anchor.js` import only each other and `constants.js`; `inbox.js` and `worker.js` take their I/O as arguments. None imports `herdr` or `gpui-kit`, so all of them run under Node.
 - Only `main.js` and `world.js` call the Herdr host (`exec`, `hc`, `run`, `spaces`, `panes`, `focused`, `watchFolder`, `notify`, `openOverlay`).
 - `sync.js` decides, never acts; `main.js` runs the actions.
-- Every visual choice lives in `style.js`; `main.js` reads only its tokens.
-- Changing `SCRIPT` in `worker.js` means bumping `SCRIPT_VERSION` in `constants.js`, so running workers get replaced.
-- Comments only for a why. Early returns. Markdown prose is never hard-wrapped.
-- Commits in English, prefixed `feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`.
+- Changing `SCRIPT` in `worker.js` means bumping `SCRIPT_VERSION` in `constants.js`, so running workers are replaced.
 
-## Validate
+## 10. Commit messages in English
+
+Subject and body in English, prefixed as the history does (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `ci:`, `chore:`), whatever language the conversation was held in.
+
+## 11. Validate before commit
 
 ```
-npm test                                   # node --test
-herdr-app check mods/wtm                   # after any mod change: loads and renders it once
+make test          # node --test
+make check         # herdr-app check mods/wtm: loads the mod and renders it once
+make install       # copy mods/wtm into ~/.config/herdr-app/mods (the running mod reloads)
+make release-notes VERSION=x.y.z   # print a CHANGELOG section as release notes
 ```
 
-Trying it: `rm -rf ~/.config/herdr-app/mods/wtm && cp -R mods/wtm ~/.config/herdr-app/mods/` (saving reloads the running copy), then `herdr-app do mod.open '{"name":"wtm"}'` the first time. `herdr-app do wtm.stop` stops the worker and closes the pill.
-
-## Docs
-
-- `README.md` is the product page; `RECIPE.md` + `preview.png` are Herdr's gallery format (what you see, how it behaves, built from, watch out, done when).
-- `CHANGELOG.md` in English, Keep a Changelog. Releases are tags `vX.Y.Z`; the README's install command names the latest tag.
-- `docs/superpowers/` is local and gitignored: design notes, never shipped.
+- `.claude/hooks/pre-commit-gates.sh` runs `make test` (and `make check` when `herdr-app` is installed) on every `git commit` and blocks it on failure. `HERDR_APP_WTM_SKIP_GATES=1 git commit …` only when the gate itself is wrong.
+- **See it run before calling it done:** `make install`, then `herdr-app do mod.open '{"name":"wtm"}'` the first time; `wtm create` and `wtm clean` in a repository the window shows; `herdr-app shot` to look at the button. `herdr-app do wtm.stop` stops the worker and closes the button.

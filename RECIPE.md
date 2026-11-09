@@ -39,7 +39,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 
 ## Done when
 
-- `herdr-app check mods/wtm` passes, and `node --test` passes.
+- `make check` and `make test` pass.
 - `herdr-app do mod.open '{"name":"wtm"}'` shows the button with an `accent` dot just left of `+`, and `hc get herdr-app-wtm` is live.
 - `wtm create x --yes` in a shell, in a repository the window shows, opens a space named `x` while `herdr-app status` keeps the same `space`.
 - `wtm clean x --yes` closes it.

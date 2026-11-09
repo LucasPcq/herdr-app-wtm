@@ -4,14 +4,21 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
-## [0.1.0]
+## [0.1.0] - 2026-11-09
+
+The first release: Herdr app spaces follow wtm's worktrees.
+
+### Highlights
+
+- **A space opens for every worktree `wtm create` makes**, whoever ran it, without moving your focus. → [How it works](docs/guide/how-it-works.md)
+- **`wtm clean` and `wtm prune` close the worktree's space** once its folder is gone; the main checkout's space never closes.
 
 ### Added
 
-- A worktree created with wtm opens as a Herdr app space, whoever created it (a shell, an agent, `wtm ui`), and the focus stays where it was.
-- A worktree removed with `wtm clean` or `wtm prune` closes its space, once its folder is gone; the main checkout's space is never closed.
-- A small `● wtm` button in the top bar, next to Files and Changes and drawn like them, shows whether sync runs; a notification says why when it doesn't, and clicking it retries. Its look and place are set in `style.js`.
-- `herdr-app do wtm.stop` stops the sync and removes the pill.
+- **A `wtm` button in the top bar**, drawn like Files and Changes: its dot says whether sync runs. → [How it works](docs/guide/how-it-works.md#the-button)
+- **A notification** when sync stops, naming the cause and the fix; clicking the button retries. → [Troubleshooting](docs/guide/troubleshooting.md)
+- **`style.js`** sets the button's look and where it opens. → [Customizing](docs/guide/customizing.md)
+- **`herdr-app do wtm.stop`** stops the sync and removes the button. → [Installation](docs/guide/installation.md#remove)
 
 [Unreleased]: https://github.com/LucasPcq/herdr-app-wtm/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/LucasPcq/herdr-app-wtm/releases/tag/v0.1.0
