@@ -19,6 +19,7 @@ The Herdr app's mod API is `~/.config/herdr-app/AGENTS.md` (the Mods section) an
 - **`README.md` is the product page**, not a reference: one sentence, the highlights, a short install, a row of links. Anything longer belongs in `docs/guide/`.
 - **`docs/guide/`** (user guide) and **`docs/dev/`** (developer docs) are hand-written. A behaviour a user needs to understand goes in the guide, in the same change as the behaviour.
 - **`RECIPE.md` and `preview.png`** are Herdr's gallery format (what you see, how it behaves, built from, watch out, done when): update them when what the button shows or does changes. `preview.png` is cropped from `herdr-app shot`.
+- **The banner** (`docs/assets/banner-{dark,light}.svg`) is wtm's, with this mod's wordmark and tagline: regenerate it with [`docs/assets/src/`](docs/assets/src/README.md), never edit the SVGs.
 - **`CHANGELOG.md`** is in English, Keep a Changelog shape, following [`docs/dev/changelog.md`](docs/dev/changelog.md). Each release section is published as the GitHub release notes by `make release-notes VERSION=x.y.z`.
 - **Markdown:** never hard-wrap prose — one paragraph is one line.
 - `docs/superpowers/` is local and gitignored: design notes, never shipped.

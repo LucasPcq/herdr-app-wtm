@@ -1,4 +1,9 @@
-<h1 align="center">herdr-app-wtm</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+    <img alt="herdr-app-wtm — Every worktree, a space." src="docs/assets/banner-light.svg" width="856">
+  </picture>
+</p>
 
 <p align="center">A <a href="https://herdr.dev">Herdr app</a> mod for <a href="https://github.com/LucasPcq/wtm">wtm</a>: each worktree you create opens as a space, each one you remove closes its space, whoever ran the command.</p>
 
