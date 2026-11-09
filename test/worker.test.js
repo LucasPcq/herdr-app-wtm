@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { chmod, mkdtemp, readdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SCRIPT, ensureWorker, isFinal, nextBackoff, runArgs, shouldReuse, stopWorker } from "../mods/wtm/worker.js";
+import { SCRIPT, ensureWorker, isFinal, nextBackoff, runArgs, shouldReuse, stopWorker, workerRunning } from "../mods/wtm/worker.js";
 
 async function fakeWtm(body) {
   const dir = await mkdtemp(join(tmpdir(), "wtm-"));
@@ -101,4 +101,12 @@ test("stopWorker kills then removes the worker", async () => {
   const { hc, calls } = fakeHc({});
   await stopWorker({ hc });
   assert.deepEqual(calls, ["kill herdr-app-wtm", "rm herdr-app-wtm"]);
+});
+
+test("workerRunning is true only while a matching worker is live", async () => {
+  const info = { state: "live", labels: { "herdr-app-wtm.script": "1" }, argv: ["/bin/wtm"] };
+  assert.equal(await workerRunning({ hc: fakeHc({ get: { code: 0, stdout: JSON.stringify(info), stderr: "" } }).hc, wtm: "/bin/wtm" }), true);
+  const done = { ...info, state: "finished" };
+  assert.equal(await workerRunning({ hc: fakeHc({ get: { code: 0, stdout: JSON.stringify(done), stderr: "" } }).hc, wtm: "/bin/wtm" }), false);
+  assert.equal(await workerRunning({ hc: fakeHc({ get: { code: 3, stdout: "", stderr: "" } }).hc, wtm: "/bin/wtm" }), false);
 });

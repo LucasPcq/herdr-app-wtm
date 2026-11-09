@@ -42,3 +42,17 @@ export const STATE = {
 };
 
 export const COMMAND = { stop: "stop" };
+
+export const WTM_BIN = "wtm";
+export const NOTIFY_TITLE = "wtm";
+
+// Notification bodies, shown once when the pill enters a blocked state.
+export const MESSAGES = {
+  [STATE.wtmMissing]: "wtm is not on your PATH, so worktrees do not sync. Install it (brew install LucasPcq/tap/wtm), then click the wtm pill.",
+  [STATE.wtmTooOld]: "This wtm has no event stream. Upgrade it (wtm upgrade), then click the wtm pill.",
+  stopped: (code) =>
+    code === 20
+      ? "wtm received an event newer than itself and stopped. Upgrade wtm, then click the wtm pill."
+      : `wtm events stopped (exit ${code}). Click the wtm pill to start it again.`,
+  error: (detail) => `Worktree sync stopped: ${detail}. Click the wtm pill to retry.`,
+};

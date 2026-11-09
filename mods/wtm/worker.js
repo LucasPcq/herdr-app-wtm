@@ -37,9 +37,17 @@ function decode(result) {
   }
 }
 
+function workerInfo(hc) {
+  return hc(["get", WORKER_NAME, "--json"]).then(decode);
+}
+
 // `hc` is the host's: (args) => Promise<{ code, stdout, stderr }>.
+export async function workerRunning({ hc, wtm }) {
+  return shouldReuse(await workerInfo(hc), wtm);
+}
+
 export async function ensureWorker({ hc, inbox, wtm }) {
-  const info = decode(await hc(["get", WORKER_NAME, "--json"]));
+  const info = await workerInfo(hc);
   if (shouldReuse(info, wtm)) return;
   if (info) {
     if (info.state === "live") await hc(["kill", WORKER_NAME]);
