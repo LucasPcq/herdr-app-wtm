@@ -12,32 +12,37 @@ const DOT = {
   [STATE.error]: "blocked",
 };
 
+// Short like the bar's own buttons: the dot tells the state, the notification why.
 const LABELS = {
   [STATE.starting]: "wtm",
   [STATE.listening]: "wtm",
-  [STATE.wtmMissing]: "wtm · not found",
-  [STATE.wtmTooOld]: "wtm · upgrade wtm",
-  [STATE.streamStopped]: "wtm · stopped",
-  [STATE.error]: "wtm · error",
+  [STATE.wtmMissing]: "wtm",
+  [STATE.wtmTooOld]: "wtm",
+  [STATE.streamStopped]: "wtm",
+  [STATE.error]: "wtm",
 };
 
+// Matches Herdr's top-bar buttons (Files, Changes): 26 px high, 8 px padding,
+// radius 6, 12 px text, the bar's own background.
 export function style(theme) {
   return {
-    // Where the pill first opens: centred in the top bar (42 px high), between
-    // the tabs and the buttons. Herdr keeps windows off the bottom edge, so
-    // "bottom" lands above the status bar. Drag it anywhere afterwards.
-    position: { edge: "top", align: "center", inset: 8, margin: 16 },
-    // The listening pill's width, used only to place it.
-    width: 64,
+    // Where the pill first opens: in the top bar (42 px), just left of the "+"
+    // button, whose left edge is 187 px from the window's right edge in Herdr's
+    // main layout on macOS. Drag it anywhere afterwards; Herdr remembers the spot.
+    position: { edge: "top", align: "end", inset: 8, margin: 190 },
+    // Fixed, so the placement above is exact.
+    width: 52,
     height: 26,
-    padX: 10,
-    gap: 6,
-    radius: 13,
-    border: 1,
-    textSize: 11.5,
-    dotSize: 7,
-    background: theme.popover,
+    padX: 8,
+    gap: 5,
+    radius: 6,
+    border: 0,
+    textSize: 12,
+    dotSize: 6,
+    background: theme.chrome,
+    hoverBackground: theme.hover,
     foreground: theme.muted,
+    hoverForeground: theme.foreground,
     borderColor: theme.border,
     dot: Object.fromEntries(Object.entries(DOT).map(([state, name]) => [state, theme[name]])),
     labels: LABELS,

@@ -207,7 +207,9 @@ export default class Wtm extends View {
     return h_flex()
       .id("wtm-pill")
       .items_center()
+      .justify_center()
       .gap(s.gap)
+      .w(s.width)
       .h(s.height)
       .px(s.padX)
       .rounded(s.radius)
@@ -216,6 +218,7 @@ export default class Wtm extends View {
       .bg(s.background)
       .text_size(s.textSize)
       .text_color(s.foreground)
+      .hover((el) => el.bg(s.hoverBackground).text_color(s.hoverForeground))
       .when(blocked, (el) =>
         el
           .cursor_pointer()

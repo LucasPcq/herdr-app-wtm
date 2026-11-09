@@ -20,9 +20,9 @@
 - **Nothing you care about is closed:** never the main checkout's space, never a space whose folder is still on disk, never a space on another machine.
 - **Only repositories you have open.** A worktree created in a repository with no space in the window is left alone.
 
-A small `● wtm` pill sits centred in the top bar: it tells you sync runs, and why it doesn't when it doesn't (wtm missing, too old, stream stopped). Drag it wherever you like; click it to retry after fixing the cause.
+A small `● wtm` button sits in the top bar, next to Files and Changes and drawn like them. Its dot tells you sync runs (accent) or doesn't (red, with a notification saying why: wtm missing, too old, stream stopped). Drag it wherever you like; click it to retry after fixing the cause.
 
-<p align="center"><img alt="The wtm pill" src="preview.png" width="150"></p>
+<p align="center"><img alt="The wtm button in the top bar, next to Files and Changes" src="preview.png" width="450"></p>
 
 ## Install
 
@@ -49,7 +49,8 @@ Every visual choice — where the pill first opens, size, radius, colours (by th
 
 ## Limits
 
-- The pill belongs to the layout it was opened in: on another layout, sync waits until you come back (or run the `mod.open` line there too).
+- The button opens where Herdr's main layout has room on macOS. With another layout, or on Linux and Windows (window buttons in the bar), drag it once; Herdr remembers the spot.
+- The button belongs to the layout it was opened in: on another layout, sync waits until you come back (or run the `mod.open` line there too).
 - Local spaces only; worktrees on other machines are not synced.
 - A worktree moved with wtm, or removed while the worker was down, is not followed.
 - Folders reached through a symlink (`/tmp` vs `/private/tmp`) may not match.
