@@ -23,6 +23,12 @@ const LABELS = {
 
 export function style(theme) {
   return {
+    // Where the pill first opens: centred in the top bar (42 px high), between
+    // the tabs and the buttons. Herdr keeps windows off the bottom edge, so
+    // "bottom" lands above the status bar. Drag it anywhere afterwards.
+    position: { edge: "top", align: "center", inset: 8, margin: 16 },
+    // The listening pill's width, used only to place it.
+    width: 64,
     height: 26,
     padX: 10,
     gap: 6,

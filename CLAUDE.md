@@ -14,14 +14,15 @@ mods/wtm/
   inbox.js       claim/read/remove event files; pure helpers + I/O injected
   worker.js      the hc worker: its sh script, start/reuse/stop; hc injected
   world.js       host: what decide() needs about the window, for one event
-  style.js       the pill's whole look, by theme colour names
+  anchor.js      pure: where the pill opens, from the window's size and style.js
+  style.js       the pill's whole look and position, by theme colour names
   main.js        host: launcher vs service copy, startup, drain loop, the pill
 test/            node --test, no dependencies, no Herdr
 ```
 
 ## Rules
 
-- `paths.js` and `sync.js` import only `./constants.js` and each other; `inbox.js` and `worker.js` take their I/O as arguments. None of them imports `herdr` or `gpui-kit`, so they run under Node.
+- `paths.js`, `anchor.js` and `sync.js` import only `./constants.js` and each other; `inbox.js` and `worker.js` take their I/O as arguments. None of them imports `herdr` or `gpui-kit`, so they run under Node.
 - Only `main.js` and `world.js` call the Herdr host (`exec`, `hc`, `run`, `spaces`, `panes`, `focused`, `watchFolder`, `notify`, `openOverlay`).
 - `sync.js` decides, never acts; `main.js` runs the actions.
 - Every visual choice lives in `style.js`; `main.js` reads only its tokens.

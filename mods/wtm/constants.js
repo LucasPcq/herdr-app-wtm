@@ -31,6 +31,11 @@ export const BACKOFF_MIN_MS = 1_000;
 export const BACKOFF_MAX_MS = 30_000;
 // A claimed event file older than this was left by a copy that died.
 export const STALE_CLAIM_MS = 60_000;
+// The launcher's share of the window on each axis: mod.json's overlay width and
+// height (1 would read as one pixel). Its measured size divided by this is the window's.
+export const LAUNCHER_SHARE = 0.5;
+// How long the launcher waits for the window's size before opening the pill unplaced.
+export const LAUNCH_TIMEOUT_MS = 1_000;
 // Drains even if a watchFolder batch was missed.
 export const FALLBACK_DRAIN_MS = 30_000;
 

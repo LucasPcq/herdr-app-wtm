@@ -20,7 +20,7 @@
 - **Nothing you care about is closed:** never the main checkout's space, never a space whose folder is still on disk, never a space on another machine.
 - **Only repositories you have open.** A worktree created in a repository with no space in the window is left alone.
 
-A small `● wtm` pill floats in the window: it tells you sync runs, and why it doesn't when it doesn't (wtm missing, too old, stream stopped). Drag it wherever you like; click it to retry after fixing the cause.
+A small `● wtm` pill sits centred in the top bar: it tells you sync runs, and why it doesn't when it doesn't (wtm missing, too old, stream stopped). Drag it wherever you like; click it to retry after fixing the cause.
 
 <p align="center"><img alt="The wtm pill" src="preview.png" width="150"></p>
 
@@ -45,7 +45,7 @@ The mod starts a hidden herdr-core terminal running `wtm events --output json`, 
 
 ## Restyling
 
-Every visual choice — size, radius, colours (by theme name, so it follows your theme), labels — is in [`mods/wtm/style.js`](mods/wtm/style.js). Edit your copy; keep it aside when you update.
+Every visual choice — where the pill first opens, size, radius, colours (by theme name, so it follows your theme), labels — is in [`mods/wtm/style.js`](mods/wtm/style.js). Edit your copy; keep it aside when you update.
 
 ## Limits
 

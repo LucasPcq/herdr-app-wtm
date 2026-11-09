@@ -1,12 +1,14 @@
 // wtm worktrees as Herdr spaces. Two copies of this mod exist: the launcher
-// (what `mod.open` shows) opens the kept window and closes; the service copy
+// (what `mod.open` shows, as large as the window so it can measure it) opens
+// the kept window where style.js says and closes; the service copy
 // (that window, reopened on every start) runs the worker and draws the pill.
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
 import { closeOverlay, exec, hc, home, nextCommand, notify, openOverlay, props, run, theme, watchFolder } from "herdr";
 import * as fs from "fs/promises";
-import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, MESSAGES, MIN_EVENTS, MOD, NOTIFY_TITLE, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
+import { anchor } from "./anchor.js";
+import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MESSAGES, MIN_EVENTS, MOD, NOTIFY_TITLE, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
 import { createInbox } from "./inbox.js";
 import { style } from "./style.js";
 import { decide } from "./sync.js";
@@ -31,9 +33,9 @@ export default class Wtm extends View {
   init(_props, cx) {
     if (!props()?.service) {
       this.launcher = true;
-      openOverlay({ mod: MOD, kind: "window", key: WINDOW_KEY, keep: true, frame: "none", props: { service: true } });
-      const own = props()?.overlay;
-      if (own) closeOverlay(own);
+      this.opened = false;
+      // Unmeasured after a second: open the pill where Herdr puts windows by default.
+      cx.timer.after(LAUNCH_TIMEOUT_MS, () => this.openPill(null));
       return;
     }
     this.state = STATE.starting;
@@ -49,6 +51,16 @@ export default class Wtm extends View {
     cx.spawn(async (cx) => this.start(cx));
     cx.spawn(async (cx) => this.listenForCommands(cx));
     cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.check(cx)));
+  }
+
+  openPill(size) {
+    if (this.opened) return;
+    this.opened = true;
+    const s = style(theme());
+    const at = size ? anchor(size, { width: s.width, height: s.height, ...s.position }) : undefined;
+    openOverlay({ mod: MOD, kind: "window", key: WINDOW_KEY, keep: true, frame: "none", at, props: { service: true } });
+    const own = props()?.overlay;
+    if (own) closeOverlay(own);
   }
 
   async start(cx) {
@@ -183,7 +195,13 @@ export default class Wtm extends View {
   }
 
   render() {
-    if (this.launcher) return div();
+    if (this.launcher) {
+      return div()
+        .id("measure")
+        .size_full()
+        // The first report can come before layout, with an empty side.
+        .on_size_change((size) => size.width > 0 && size.height > 0 && this.openPill({ width: size.width / LAUNCHER_SHARE, height: size.height / LAUNCHER_SHARE }));
+    }
     const s = style(theme());
     const blocked = BLOCKED.has(this.state);
     return h_flex()

@@ -1,1 +1,1 @@
-{ "place": "none", "title": "wtm" }
+{ "place": "none", "title": "wtm", "overlay": { "kind": "dialog", "width": 0.5, "height": 0.5, "frame": "none" } }
