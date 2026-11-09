@@ -30,6 +30,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 
 ## Watch out
 
+- **After copying `mods/wtm/`, open it once:** `herdr-app do mod.open '{"name":"wtm"}'`. Without it nothing syncs; with it, Herdr reopens the button on every start. It needs no `keys.json` and no layout.
 - A mod only runs while shown, and Herdr's shipped layouts are read-only: `place` other than `none` never docks there. The kept window is what keeps the mod alive.
 - `exec` does not stream; `watchFolder` sees created and renamed entries but not appends, and seems to skip hidden folders: hence one file per event in a non-hidden folder.
 - `fs` writes only under `~/.config/herdr-app` and reads only inside home: use `exec` for the inbox's writes and for `test -e` on worktree paths.

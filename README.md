@@ -19,21 +19,27 @@
 
 ## Highlights
 
-- **`wtm create` opens a space** on the new worktree, whether you ran it, an agent in the next pane did, or `wtm ui`.
-- **Your focus stays put:** the space appears in the sidebar while you keep typing where you were.
-- **`wtm clean` and `wtm prune` close the space** once the worktree's folder is gone.
-- **Nothing you care about is closed:** never the main checkout's space, never a folder still on disk, never another machine.
-- **Only repositories you have open** in the window.
-- **One button, drawn like Files and Changes:** its dot says whether sync runs, and a notification says why when it does not.
+- **`wtm create` opens a space**, whoever ran it.
+- **Your focus stays put.**
+- **`wtm clean` and `wtm prune` close the space.**
+- **Never closes the main checkout's space.**
+- **Only repositories you have open.**
+- **One button in the top bar** shows whether sync runs.
 
 ## Install
 
-```bash
-git clone --depth 1 --branch v0.1.0 https://github.com/LucasPcq/herdr-app-wtm /tmp/herdr-app-wtm
-cp -R /tmp/herdr-app-wtm/mods/wtm ~/.config/herdr-app/mods/ && herdr-app do mod.open '{"name":"wtm"}'
+Ask your Herdr agent: *"add the mod at github.com/LucasPcq/herdr-app-wtm"*. It reads [RECIPE.md](RECIPE.md) and every file, copies `mods/wtm/` into `~/.config/herdr-app/mods/`, checks it and opens it once.
+
+Or by hand:
+
+```sh
+git clone https://github.com/LucasPcq/herdr-app-wtm
+cp -R herdr-app-wtm/mods/wtm ~/.config/herdr-app/mods/
+herdr-app check ~/.config/herdr-app/mods/wtm
+herdr-app do mod.open '{"name":"wtm"}'
 ```
 
-Needs the Herdr app and wtm 0.29 or later. Updating, removing, and what the mod runs: [Installation](docs/guide/installation.md). Herdr TUI user? Use [herdr-wtm](https://github.com/LucasPcq/herdr-wtm).
+Needs the Herdr app and wtm 0.29 or later. The last line, once, shows the button; Herdr reopens it on every start. Updating, removing, and what the mod runs: [Installation](docs/guide/installation.md). Herdr TUI user? Use [herdr-wtm](https://github.com/LucasPcq/herdr-wtm).
 
 ## Learn more
 
