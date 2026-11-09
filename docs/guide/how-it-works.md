@@ -43,7 +43,7 @@ The dot turns grey for the moment the stream restarts. Nothing is opened on its 
 | grey | starting, or restarting after the stream stopped |
 | red | sync is down; a notification said why: wtm not found, wtm too old, the stream stopped (an event newer than wtm), or an error |
 
-Click a red button to retry once the cause is fixed. While syncing, a double-click syncs what is already there. Otherwise a press drags it; Herdr remembers where you drop it.
+Rest the pointer on it for a tooltip saying the same, and what a click does. Click a red button to retry once the cause is fixed. While syncing, a double-click syncs what is already there. Otherwise a press drags it; Herdr remembers where you drop it.
 
 ## Limits
 

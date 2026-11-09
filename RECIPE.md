@@ -8,6 +8,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 
 - One window, drawn by the mod with `frame: "none"`, opened in the top bar just left of the `+` button (8 px from the top, its right edge 190 px from the window's): a button like Files and Changes — 52 × 26 px, 8 px side padding, radius 6, no border, background `chrome` (`hover` on hover, text then `foreground`), text `muted` at 12 px.
 - In it, a 6 px round dot and `wtm`: `accent` dot while syncing, `muted` while starting, `blocked` when sync is down (wtm not found, too old, stream stopped, error); the notification says which.
+- Resting the pointer on the pill shows a tooltip per state: what the dot means and what a click or double-click does (`style.js`'s `TOOLTIPS`).
 - Spaces appear in and leave the regular spaces sidebar; the mod draws nothing else.
 
 ## How it behaves

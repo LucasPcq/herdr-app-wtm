@@ -248,6 +248,7 @@ export default class Wtm extends View {
       .text_size(s.textSize)
       .text_color(s.foreground)
       .hover((el) => el.bg(s.hoverBackground).text_color(s.hoverForeground))
+      .tooltip(s.tooltips[this.state])
       .when(blocked, (el) =>
         el
           .cursor_pointer()

@@ -22,6 +22,16 @@ const LABELS = {
   [STATE.error]: "wtm",
 };
 
+// Shown after the pointer rests on the pill: what the dot means and what a click does.
+const TOOLTIPS = {
+  [STATE.starting]: "wtm: starting worktree sync",
+  [STATE.listening]: "wtm: spaces follow worktrees. Double-click to sync what is already there",
+  [STATE.wtmMissing]: "wtm: not found on your PATH. Click to retry",
+  [STATE.wtmTooOld]: "wtm: too old, run wtm upgrade. Click to retry",
+  [STATE.streamStopped]: "wtm: event stream stopped. Click to retry",
+  [STATE.error]: "wtm: sync stopped on an error. Click to retry",
+};
+
 // Matches Herdr's top-bar buttons (Files, Changes): 26 px high, 8 px padding,
 // radius 6, 12 px text, the bar's own background.
 export function style(theme) {
@@ -46,5 +56,6 @@ export function style(theme) {
     borderColor: theme.border,
     dot: Object.fromEntries(Object.entries(DOT).map(([state, name]) => [state, theme[name]])),
     labels: LABELS,
+    tooltips: TOOLTIPS,
   };
 }
