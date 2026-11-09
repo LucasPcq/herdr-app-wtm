@@ -1,0 +1,67 @@
+# Architecture
+
+herdr-app-wtm keeps the Herdr app's spaces in step with wtm's worktrees. Three things do the work: a long-lived **worker** in herdr-core, an **inbox** of event files, and the mod's **service copy**, a kept window that draws the button.
+
+```
+herdr-app do mod.open wtm ──► launcher copy (dialog, half the window: measures it)
+                                  │ openOverlay(kind: "window", key: "wtm", keep: true, at: anchor(...))
+                                  ▼
+                              service copy (reopened by Herdr on every start)
+                                  │ ensureWorker
+                                  ▼
+hc run --bg --name herdr-app-wtm -- sh -c SCRIPT sh <inbox> <wtm> <run>
+                                  │ cd / && wtm events --output json
+                                  ▼
+~/.local/state/herdr-app-wtm/inbox/<n>.json   (one per line: .tmp then mv)
+                                  │ watchFolder + 30 s check
+                                  ▼
+service copy: take (claim by rename) → decide({ event, world }) → space.new + space.select / space.close
+```
+
+## Modules
+
+| Module | Role |
+| --- | --- |
+| `constants.js` | every name, path, version, exit code, timing, event type, state and message |
+| `paths.js` | `normalize`, `inside({ path, dir })`, `placeOf({ space, panes })` |
+| `sync.js` | `decide({ event, world })` → `{ kind: "open", folder, reselect }` or `{ kind: "close", id }` |
+| `anchor.js` | `anchor({ window, pill, position })` → `{ x, y }` |
+| `inbox.js` | `pending`, `staleClaims`, `parse`, `createInbox({ dir, copyId, io })` → `take`, `done`, `releaseStale` |
+| `worker.js` | `SCRIPT`, `runArgs`, `shouldReuse`, `nextBackoff`, `isFinal`, `ensureWorker`, `workerRunning`, `stopWorker` |
+| `style.js` | `style(theme)` → the button's tokens: size, colours by theme name, labels, `position` |
+| `world.js` | `buildWorld({ event, cache })`: local spaces with their place and folder, the focused space, whether the worktree's folder exists, whether its repository is shown |
+| `main.js` | the `View`: launcher vs service copy, startup, the drain loop, exit handling, `stop`, the button |
+
+## Why each piece is there
+
+Each comes from a Herdr app limit, observed in a running app:
+
+- **A worker in herdr-core.** A mod's `exec` returns only when the program ends; `wtm events` never ends. A named `hc` terminal with no `herdr.*` label is invisible in the window, and `--outlive-parent` keeps it across app restarts.
+- **One file per event.** `watchFolder` reports created and renamed entries, not appends, and skips hidden folders. The worker writes `.tmp` then renames it to `<n>.json` (`n` = seconds × 10⁶ + a counter: increasing across runs, below 2⁵³).
+- **`exec` for the inbox's writes.** `fs/promises` writes only under `~/.config/herdr-app` and reads only inside home; `mv`, `rm` and `test -e` go through `exec`.
+- **A kept window.** A mod runs only while shown, `place` other than `none` is never docked into Herdr's read-only shipped layouts, and the status bar and the Files/Changes buttons have no extension point. `openOverlay({ kind: "window", key, keep: true })` reopens on every start.
+- **A measuring launcher.** Windows are placed by absolute `at` only, and a mod cannot read the window's size. The launcher is a dialog sized 0.5 × 0.5 of the window (`mod.json`'s `overlay`; a popup ignores its height, and `1` reads as one pixel); its first non-empty `on_size_change`, doubled, is the window. Herdr keeps windows off the bottom edge, so the button goes in the top bar.
+- **Re-selecting after `space.new`.** `space.new` selects the new space; the previously active one is selected right after, so the focus never moves.
+
+## The worker
+
+- **One per machine**, named `herdr-app-wtm`, labelled `herdr-app-wtm.script=<SCRIPT_VERSION>` and `herdr-app-wtm.run=<id>`. `ensureWorker` reuses a live one with the current script on the same wtm, else kills, removes and starts one, and returns the run id now working.
+- **Compatibility first.** `wtm version --output json` must report `events >= MIN_EVENTS`; otherwise the button goes red and a notification says to upgrade.
+- **Exit marker.** After wtm exits, the script writes `{"type":"herdr-app-wtm.exit","code":N,"run":"<id>"}` through the same inbox. A marker from another run is ignored. Codes `2` and `20` stop for good (`stream-stopped`); any other restarts with a backoff from 1 s to 30 s, reset on `ready`.
+- **Liveness.** Every 30 s the service copy checks the worker is live and restarts it if not (a worker killed or lost with its core writes no marker), then drains.
+
+## The inbox
+
+- **Claim by rename.** `take` renames each `<n>.json` to `<n>.json.<copyId>.<claimMs>` before reading it; a failed `mv` means another copy took it. Two copies (two layouts, two clients) never handle one event.
+- **Release.** `take` first renames back claims older than a minute: a copy that died mid-batch left them.
+- **Order.** Numeric, so `…10.json` follows `…9.json`. A file is removed only after its event was acted on: a crash in between replays it, and every action is guarded so a replay does nothing.
+
+## Decisions
+
+- `worktree.created` opens a space when the worktree is linked, its folder exists, its repository is shown (a local space's place has the event's `common_dir` as git common dir) and no local space's place is inside it. The previously focused space is selected again.
+- `worktree.removed` closes each local space whose place is inside the worktree **and whose folder is inside it**, when the worktree is linked and its folder is gone. A space made elsewhere whose terminal went into the worktree (the main checkout's, with its agents) stays.
+- Everything else is ignored. Spaces on other machines are never matched.
+
+## Testing
+
+Pure modules run under Node: `decide` and `anchor` as tables, the inbox against a temp folder (two concurrent drains included), the worker's real `sh` script against a fake wtm that prints lines and exits with a chosen code, `ensureWorker` against a fake `hc`. `main.js` and `world.js` need the Herdr host: `make check` loads them once, and the manual checks in [`RECIPE.md`](../../RECIPE.md) ("Done when") cover the rest.
