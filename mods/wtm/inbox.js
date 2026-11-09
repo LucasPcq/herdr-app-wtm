@@ -8,7 +8,7 @@ export function pending(names) {
   return names.filter((name) => PENDING.test(name)).sort((a, b) => Number(a.match(PENDING)[1]) - Number(b.match(PENDING)[1]));
 }
 
-export function staleClaims(names, now) {
+export function staleClaims({ names, now }) {
   return names.flatMap((name) => {
     const match = name.match(CLAIMED);
     return match && now - Number(match[2]) > STALE_CLAIM_MS ? [{ from: name, to: match[1] }] : [];
@@ -26,12 +26,12 @@ export function parse(text) {
 }
 
 // The worker's event files, claimed by renaming so that two copies of the mod
-// never handle the same event. `io` is the host's file access: move resolves
-// false when the file is gone (another copy took it).
+// never handle the same event. `io` is the host's file access: move({ from, to })
+// resolves false when the file is gone (another copy took it).
 export function createInbox({ dir, copyId, io }) {
   async function releaseStale() {
-    for (const { from, to } of staleClaims(await io.list(dir), io.now())) {
-      await io.move(`${dir}/${from}`, `${dir}/${to}`);
+    for (const { from, to } of staleClaims({ names: await io.list(dir), now: io.now() })) {
+      await io.move({ from: `${dir}/${from}`, to: `${dir}/${to}` });
     }
   }
 
@@ -44,7 +44,7 @@ export function createInbox({ dir, copyId, io }) {
       const taken = [];
       for (const name of pending(await io.list(dir))) {
         const path = `${dir}/${name}.${copyId}.${io.now()}`;
-        if (!(await io.move(`${dir}/${name}`, path))) continue;
+        if (!(await io.move({ from: `${dir}/${name}`, to: path }))) continue;
         taken.push({ path, event: parse(await io.read(path)) });
       }
       return taken;

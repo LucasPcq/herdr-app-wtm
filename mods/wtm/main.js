@@ -22,7 +22,7 @@ const BLOCKED = new Set([STATE.wtmMissing, STATE.wtmTooOld, STATE.streamStopped,
 const hostIo = {
   list: (dir) => fs.readdir(dir),
   read: (path) => fs.readFile(path, "utf8"),
-  move: async (from, to) => (await exec("mv", [from, to])).code === 0,
+  move: async ({ from, to }) => (await exec("mv", [from, to])).code === 0,
   remove: async (path) => {
     await exec("rm", ["-f", path]);
   },
@@ -57,17 +57,17 @@ export default class Wtm extends View {
     if (this.opened) return;
     this.opened = true;
     const s = style(theme());
-    const at = size ? anchor(size, { width: s.width, height: s.height, ...s.position }) : undefined;
+    const at = size ? anchor({ window: size, pill: { width: s.width, height: s.height }, position: s.position }) : undefined;
     openOverlay({ mod: MOD, kind: "window", key: WINDOW_KEY, keep: true, frame: "none", at, props: { service: true } });
     const own = props()?.overlay;
     if (own) closeOverlay(own);
   }
 
   async start(cx) {
-    this.set(STATE.starting, cx);
+    this.set(cx, { state: STATE.starting });
     const wtm = await this.findWtm();
-    if (!wtm) return this.set(STATE.wtmMissing, cx);
-    if (!(await this.hasEvents(wtm))) return this.set(STATE.wtmTooOld, cx);
+    if (!wtm) return this.set(cx, { state: STATE.wtmMissing });
+    if (!(await this.hasEvents(wtm))) return this.set(cx, { state: STATE.wtmTooOld });
     this.wtm = wtm;
 
     const dir = `${home()}/${INBOX_DIR}`;
@@ -78,10 +78,10 @@ export default class Wtm extends View {
       this.inbox = createInbox({ dir, copyId: this.copyId, io: hostIo });
       await this.inbox.releaseStale();
     } catch (error) {
-      return this.set(STATE.error, cx, error.message ?? String(error));
+      return this.set(cx, { state: STATE.error, detail: error.message ?? String(error) });
     }
 
-    this.set(STATE.listening, cx);
+    this.set(cx, { state: STATE.listening });
     await this.drain(cx);
     if (!this.watching) cx.spawn(async (cx) => this.watch(cx, dir));
   }
@@ -120,7 +120,7 @@ export default class Wtm extends View {
         await this.drain(cx);
       }
     } catch (error) {
-      this.set(STATE.error, cx, error.message ?? String(error));
+      this.set(cx, { state: STATE.error, detail: error.message ?? String(error) });
     } finally {
       this.watching = false;
     }
@@ -144,7 +144,7 @@ export default class Wtm extends View {
         }
       } while (this.drainAgain);
     } catch (error) {
-      this.set(STATE.error, cx, error.message ?? String(error));
+      this.set(cx, { state: STATE.error, detail: error.message ?? String(error) });
     } finally {
       this.draining = false;
     }
@@ -159,7 +159,7 @@ export default class Wtm extends View {
     }
     if ((event.type !== EVENT.created && event.type !== EVENT.removed) || !event.worktree?.path) return;
     try {
-      for (const action of decide(event, await buildWorld(event, this.repos))) apply(action);
+      for (const action of decide({ event, world: await buildWorld({ event, cache: this.repos }) })) apply(action);
     } catch (error) {
       console.log(`wtm: ${event.type} ${event.worktree.path}: ${error.message ?? error}`);
     }
@@ -168,9 +168,9 @@ export default class Wtm extends View {
   async exited(event, cx) {
     // A marker from a run already replaced.
     if (event.run !== this.runId) return;
-    if (isFinal(event.code)) return this.set(STATE.streamStopped, cx, event.code);
+    if (isFinal(event.code)) return this.set(cx, { state: STATE.streamStopped, detail: event.code });
     this.backoff = nextBackoff(this.backoff);
-    this.set(STATE.starting, cx);
+    this.set(cx, { state: STATE.starting });
     cx.timer.after(this.backoff, (cx) => cx.spawn(async (cx) => this.start(cx)));
   }
 
@@ -187,10 +187,10 @@ export default class Wtm extends View {
     }
   }
 
-  set(state, cx, detail) {
+  set(cx, { state, detail }) {
     const entering = state !== this.state;
     this.state = state;
-    if (entering && BLOCKED.has(state)) notify({ title: NOTIFY_TITLE, body: message(state, detail), level: "error" });
+    if (entering && BLOCKED.has(state)) notify({ title: NOTIFY_TITLE, body: message({ state, detail }), level: "error" });
     cx.notify();
   }
 
@@ -237,7 +237,7 @@ function apply(action) {
   if (action.reselect) run("space.select", { id: action.reselect });
 }
 
-function message(state, detail) {
+function message({ state, detail }) {
   if (state === STATE.streamStopped) return MESSAGES.stopped(detail);
   if (state === STATE.error) return MESSAGES.error(detail);
   return MESSAGES[state];

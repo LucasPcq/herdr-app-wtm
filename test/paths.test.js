@@ -9,13 +9,13 @@ test("normalize strips trailing slashes but keeps /", () => {
 });
 
 test("inside accepts the folder itself and a child", () => {
-  assert.ok(inside("/a/b", "/a/b"));
-  assert.ok(inside("/a/b/c", "/a/b/"));
+  assert.ok(inside({ path: "/a/b", dir: "/a/b" }));
+  assert.ok(inside({ path: "/a/b/c", dir: "/a/b/" }));
 });
 
 test("inside rejects a sibling sharing a prefix", () => {
-  assert.equal(inside("/a/b-2", "/a/b"), false);
-  assert.equal(inside("/a", "/a/b"), false);
+  assert.equal(inside({ path: "/a/b-2", dir: "/a/b" }), false);
+  assert.equal(inside({ path: "/a", dir: "/a/b" }), false);
 });
 
 test("placeOf prefers the first pane cwd of the space's tabs, else folder, else null", () => {
@@ -25,7 +25,7 @@ test("placeOf prefers the first pane cwd of the space's tabs, else folder, else 
     { tab: "t2", cwd: null },
     { tab: "t2", cwd: "/repo/sub" },
   ];
-  assert.equal(placeOf(space, panes), "/repo/sub");
-  assert.equal(placeOf(space, []), "/repo");
-  assert.equal(placeOf({ folder: "", tabs: [] }, []), null);
+  assert.equal(placeOf({ space, panes }), "/repo/sub");
+  assert.equal(placeOf({ space, panes: [] }), "/repo");
+  assert.equal(placeOf({ space: { folder: "", tabs: [] }, panes: [] }), null);
 });

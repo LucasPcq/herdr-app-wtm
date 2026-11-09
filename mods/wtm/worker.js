@@ -17,7 +17,7 @@ export function runArgs({ inbox, wtm, run }) {
   return ["run", "--bg", "--name", WORKER_NAME, "--outlive-parent", "--label", `${WORKER_LABEL}=${SCRIPT_VERSION}`, "--label", `${RUN_LABEL}=${run}`, "--", "sh", "-c", SCRIPT, "sh", inbox, wtm, run];
 }
 
-export function shouldReuse(info, wtm) {
+export function shouldReuse({ info, wtm }) {
   return info?.state === "live" && info.labels?.[WORKER_LABEL] === SCRIPT_VERSION && info.argv?.at(-2) === wtm;
 }
 
@@ -44,13 +44,13 @@ function workerInfo(hc) {
 
 // `hc` is the host's: (args) => Promise<{ code, stdout, stderr }>.
 export async function workerRunning({ hc, wtm }) {
-  return shouldReuse(await workerInfo(hc), wtm);
+  return shouldReuse({ info: await workerInfo(hc), wtm });
 }
 
 // Returns the id of the run now working: the live one's, or `run` for a new one.
 export async function ensureWorker({ hc, inbox, wtm, run }) {
   const info = await workerInfo(hc);
-  if (shouldReuse(info, wtm)) return info.labels[RUN_LABEL];
+  if (shouldReuse({ info, wtm })) return info.labels[RUN_LABEL];
   if (info) {
     if (info.state === "live") await hc(["kill", WORKER_NAME]);
     await hc(["rm", WORKER_NAME]);

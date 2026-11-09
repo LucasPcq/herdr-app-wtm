@@ -42,11 +42,11 @@ test("runArgs starts a named, labelled, hidden worker that outlives its parent",
 
 test("shouldReuse only a live worker of this script version on this wtm", () => {
   const live = { state: "live", labels: { "herdr-app-wtm.script": "2" }, argv: ["sh", "-c", "…", "sh", "/inbox", "/bin/wtm", "r1"] };
-  assert.equal(shouldReuse(live, "/bin/wtm"), true);
-  assert.equal(shouldReuse({ ...live, state: "finished" }, "/bin/wtm"), false);
-  assert.equal(shouldReuse({ ...live, labels: { "herdr-app-wtm.script": "0" } }, "/bin/wtm"), false);
-  assert.equal(shouldReuse(live, "/opt/wtm"), false);
-  assert.equal(shouldReuse(null, "/bin/wtm"), false);
+  assert.equal(shouldReuse({ info: live, wtm: "/bin/wtm" }), true);
+  assert.equal(shouldReuse({ info: { ...live, state: "finished" }, wtm: "/bin/wtm" }), false);
+  assert.equal(shouldReuse({ info: { ...live, labels: { "herdr-app-wtm.script": "0" } }, wtm: "/bin/wtm" }), false);
+  assert.equal(shouldReuse({ info: live, wtm: "/opt/wtm" }), false);
+  assert.equal(shouldReuse({ info: null, wtm: "/bin/wtm" }), false);
 });
 
 test("nextBackoff starts at 1 s, doubles, and stops at 30 s", () => {

@@ -8,7 +8,7 @@ import { createInbox, parse, pending, staleClaims } from "../mods/wtm/inbox.js";
 const nodeIo = (now = () => Date.now()) => ({
   list: (dir) => readdir(dir),
   read: (path) => readFile(path, "utf8"),
-  move: (from, to) => rename(from, to).then(() => true, () => false),
+  move: ({ from, to }) => rename(from, to).then(() => true, () => false),
   remove: (path) => rm(path, { force: true }),
   now,
 });
@@ -28,7 +28,7 @@ test("pending ignores the worker's .tmp and claimed files", () => {
 
 test("staleClaims returns only claims older than a minute, back to their pending name", () => {
   const now = 1_000_000;
-  assert.deepEqual(staleClaims(["5.json.abc.900000", "6.json.def.990000", "7.json"], now), [{ from: "5.json.abc.900000", to: "5.json" }]);
+  assert.deepEqual(staleClaims({ names: ["5.json.abc.900000", "6.json.def.990000", "7.json"], now }), [{ from: "5.json.abc.900000", to: "5.json" }]);
 });
 
 test("parse returns the event, or null for a line that is not a JSON object", () => {
