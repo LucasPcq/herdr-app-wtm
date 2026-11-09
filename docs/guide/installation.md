@@ -15,7 +15,7 @@ herdr-app check ~/.config/herdr-app/mods/wtm
 herdr-app do mod.open '{"name":"wtm"}'
 ```
 
-The last line, once, opens the `● wtm` button in the top bar; from then on Herdr reopens it on every start. A specific version: `git clone --branch v0.1.0 …`. Copy the folder rather than linking it: Herdr loads a linked folder but does not reload it.
+The last line, once, opens the `● wtm` button in the top bar; from then on Herdr reopens it on every start. A specific version: `git clone --branch v0.2.0 …`. Copy the folder rather than linking it: Herdr loads a linked folder but does not reload it.
 
 If you already have a mod called `wtm`, rename this one's folder and set `MOD` and `WINDOW_KEY` in its `constants.js` to the new name; `herdr-app do <name>.stop` then stops it.
 

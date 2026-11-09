@@ -4,10 +4,17 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-09
+
+Catch up with worktrees made or removed while the sync was not running.
+
+### Highlights
+
+- **Double-click the button to sync what is already there**: a space opens for every worktree that has none, and the spaces whose folder is gone close. `herdr-app do wtm.sync` does the same. → [How it works](docs/guide/how-it-works.md#syncing-what-is-already-there)
+
 ### Added
 
 - **A tooltip on the button** says what its dot means and what a click or a double-click does.
-- **Sync what is already there**: double-click the button (or run `herdr-app do wtm.sync`) to open a space for every worktree that has none and close the spaces whose folder is gone. → [How it works](docs/guide/how-it-works.md#syncing-what-is-already-there)
 
 ## [0.1.0] - 2026-11-09
 
@@ -25,5 +32,6 @@ The first release: Herdr app spaces follow wtm's worktrees.
 - **`style.js`** sets the button's look and where it opens. → [Customizing](docs/guide/customizing.md)
 - **`herdr-app do wtm.stop`** stops the sync and removes the button. → [Installation](docs/guide/installation.md#remove)
 
-[Unreleased]: https://github.com/LucasPcq/herdr-app-wtm/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/LucasPcq/herdr-app-wtm/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/LucasPcq/herdr-app-wtm/releases/tag/v0.2.0
 [0.1.0]: https://github.com/LucasPcq/herdr-app-wtm/releases/tag/v0.1.0
