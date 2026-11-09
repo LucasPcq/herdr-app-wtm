@@ -1,6 +1,6 @@
-# Banner sources
+# Brand image sources
 
-The README banner is wtm's ([`docs/assets/src/banner.py`](https://github.com/LucasPcq/wtm/blob/main/docs/assets/src/banner.py) in wtm, same colours and layout) with this mod's wordmark and tagline. Every piece of text is outlined into SVG paths, so it renders the same where Archivo and Martian Mono are not installed (GitHub). `outline.py` is wtm's, unchanged.
+The README banner is wtm's ([`docs/assets/src/banner.py`](https://github.com/LucasPcq/wtm/blob/main/docs/assets/src/banner.py) in wtm, same colours and layout) with this mod's wordmark and tagline. The gallery card (`preview.png`, 1280×800 at 2×) follows wtm's social preview (`social.py`): a command, and its worktrees landing as spaces in a sidebar. Herdr is named, never drawn: its logo is not ours. Every piece of text is outlined into SVG paths, so it renders the same where Archivo and Martian Mono are not installed (GitHub). `outline.py` is wtm's, unchanged.
 
 It needs Python 3, `fonttools`, and the two variable fonts from Google Fonts (OFL): `Archivo[wdth,wght].ttf` saved as `Archivo.ttf`, and `MartianMono[wdth,wght].ttf` saved as `MartianMono.ttf`, in one directory.
 
@@ -12,6 +12,8 @@ curl -fsSL -o $fonts/MartianMono.ttf "https://github.com/google/fonts/raw/main/o
 
 cd docs/assets/src
 /tmp/wtm-brand/bin/python banner.py $fonts ..                                  # banner-dark.svg, banner-light.svg
+/tmp/wtm-brand/bin/python preview.py $fonts /tmp/preview.svg
+rsvg-convert -w 2560 -h 1600 /tmp/preview.svg -o ../../../preview.png      # the gallery card
 ```
 
-When wtm's banner changes (colours, lanes), carry the change here.
+When wtm's banner or social preview changes (colours, lanes), carry the change here.
