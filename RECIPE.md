@@ -14,6 +14,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 
 - `worktree.created` in a repository the window shows (a local space's first terminal, or its folder, is in that repository): a space opens on the worktree, then the previously active space is selected again. Nothing happens for the main checkout, a folder already gone, or when a space is already inside the worktree.
 - `worktree.removed`: every local space whose first terminal (or folder) is inside the worktree closes, if the folder is gone and it is not the main checkout.
+- Double-clicking the pill while the dot is `accent` (or `herdr-app do wtm.sync`) syncs what is already there: every local space whose folder and first terminal's folder are both gone closes, then the worker restarts and each `snapshot` line, until `ready`, is replayed as a `worktree.created` per worktree. Snapshots are ignored otherwise.
 - Entering a blocked state posts one error notification with the cause and the fix. Clicking the pill then retries; otherwise presses drag it.
 - `herdr-app do wtm.stop` removes the worker and closes the pill.
 - Agent statuses play no part.
@@ -25,7 +26,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - Service copy (the kept window): `exec("which", ["wtm"])`, `wtm version --output json` (`events >= 1`), `mkdir -p ~/.local/state/herdr-app-wtm/inbox`, then `hc run --bg --name herdr-app-wtm --outlive-parent --label herdr-app-wtm.script=1 -- sh -c <script> sh <inbox> <wtm>`, reused while live with that label.
 - The script runs `cd / && wtm events --output json` and writes every non-empty line to `.tmp` then `mv` to `<n>.json` (`n` = seconds × 10⁶ + counter), then `{"type":"herdr-app-wtm.exit","code":N}`.
 - The mod `watchFolder`s the inbox (plus a 30 s fallback), claims each `<n>.json` by renaming it to `<n>.json.<copyId>.<ms>` (`mv`), reads it, acts, removes it. Claims older than a minute are released on start.
-- `spaces()`, `panes()`, `focused()`, `run("space.new" | "space.select" | "space.close")`, `notify`, `nextCommand` (`stop`), `exec` for `git rev-parse --path-format=absolute --git-common-dir`, `test -e`, `mv`, `rm`.
+- `spaces()`, `panes()`, `focused()`, `run("space.new" | "space.select" | "space.close")`, `notify`, `nextCommand` (`stop`, `sync`), `exec` for `git rev-parse --path-format=absolute --git-common-dir`, `test -e`, `mv`, `rm`.
 - Exit codes 2 and 20 stop for good; others restart with 1 s → 30 s backoff, reset on `ready`.
 
 ## Watch out
@@ -44,5 +45,6 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - `herdr-app do mod.open '{"name":"wtm"}'` shows the button with an `accent` dot just left of `+`, and `hc get herdr-app-wtm` is live.
 - `wtm create x --yes` in a shell, in a repository the window shows, opens a space named `x` while `herdr-app status` keeps the same `space`.
 - `wtm clean x --yes` closes it.
+- With the worker killed (`hc kill herdr-app-wtm`), `wtm create y --yes` opens nothing; `herdr-app do wtm.sync` opens `y`, focus unchanged. Killed again, `wtm clean y --yes` then `herdr-app do wtm.sync` closes it.
 - Quitting and reopening the app brings the pill back, and syncing continues.
 - `herdr-app do wtm.stop` removes the pill and the `herdr-app-wtm` terminal.

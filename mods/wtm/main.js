@@ -11,9 +11,9 @@ import { anchor } from "./anchor.js";
 import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MESSAGES, MIN_EVENTS, MOD, NOTIFY_TITLE, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
 import { createInbox } from "./inbox.js";
 import { style } from "./style.js";
-import { decide } from "./sync.js";
+import { decide, replay, sweep } from "./sync.js";
 import { ensureWorker, isFinal, nextBackoff, stopWorker, workerRunning } from "./worker.js";
-import { buildWorld } from "./world.js";
+import { buildSweepWorld, buildWorld } from "./world.js";
 
 const BLOCKED = new Set([STATE.wtmMissing, STATE.wtmTooOld, STATE.streamStopped, STATE.error]);
 
@@ -48,6 +48,7 @@ export default class Wtm extends View {
     this.watching = false;
     this.draining = false;
     this.drainAgain = false;
+    this.resyncing = false;
     cx.spawn(async (cx) => this.start(cx));
     cx.spawn(async (cx) => this.listenForCommands(cx));
     cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.check(cx)));
@@ -153,8 +154,10 @@ export default class Wtm extends View {
   async handle(event, cx) {
     if (!event) return;
     if (event.type === EXIT_EVENT) return this.exited(event, cx);
+    if (event.type === EVENT.snapshot) return this.replaySnapshot(event, cx);
     if (event.type === EVENT.ready) {
       this.backoff = null;
+      this.resyncing = false;
       return;
     }
     if ((event.type !== EVENT.created && event.type !== EVENT.removed) || !event.worktree?.path) return;
@@ -163,6 +166,28 @@ export default class Wtm extends View {
     } catch (error) {
       console.log(`wtm: ${event.type} ${event.worktree.path}: ${error.message ?? error}`);
     }
+  }
+
+  async replaySnapshot(event, cx) {
+    if (!this.resyncing) return;
+    for (const created of replay(event)) await this.handle(created, cx);
+  }
+
+  // Closes the spaces whose folder is gone, then restarts the stream: wtm opens
+  // it on a fresh snapshot of every repository, replayed until its ready line.
+  async resync(cx) {
+    if (this.state !== STATE.listening) return;
+    this.set(cx, { state: STATE.starting });
+    try {
+      for (const action of sweep({ world: await buildSweepWorld() })) apply(action);
+    } catch (error) {
+      console.log(`wtm: resync: ${error.message ?? error}`);
+    }
+    this.resyncing = true;
+    // The stopped run's exit marker must not schedule a restart.
+    this.runId = null;
+    await stopWorker({ hc });
+    await this.start(cx);
   }
 
   async exited(event, cx) {
@@ -179,6 +204,10 @@ export default class Wtm extends View {
       const command = await nextCommand();
       // Touching cx ends this loop once a reload replaced the copy.
       cx.notify();
+      if (command === COMMAND.sync) {
+        cx.spawn(async (cx) => this.resync(cx));
+        continue;
+      }
       if (command !== COMMAND.stop) continue;
       await stopWorker({ hc });
       closeOverlay(props().overlay);
@@ -224,6 +253,14 @@ export default class Wtm extends View {
           .cursor_pointer()
           .on_mouse_down("left", (_event, cx) => cx.stop_propagation())
           .on_click((_event, cx) => cx.spawn(async (cx) => this.start(cx))),
+      )
+      // A press drags the pill, so a click could end a drag: a double-click resyncs.
+      .when(this.state === STATE.listening, (el) =>
+        el.on_mouse_down("left", (event, cx) => {
+          if (event.click_count < 2) return;
+          cx.stop_propagation();
+          cx.spawn(async (cx) => this.resync(cx));
+        }),
       )
       .child(div().flex_none().size(s.dotSize).rounded_full().bg(s.dot[this.state]))
       .child(div().child(s.labels[this.state]));

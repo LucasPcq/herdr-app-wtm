@@ -20,6 +20,7 @@ export const MIN_EVENTS = 1;
 export const EVENT = {
   created: "worktree.created",
   removed: "worktree.removed",
+  snapshot: "snapshot",
   ready: "ready",
 };
 // Written by the worker after wtm exits: {"type": EXIT_EVENT, "code": n}.
@@ -48,7 +49,7 @@ export const STATE = {
   error: "error",
 };
 
-export const COMMAND = { stop: "stop" };
+export const COMMAND = { stop: "stop", sync: "sync" };
 
 export const WTM_BIN = "wtm";
 export const NOTIFY_TITLE = "wtm";

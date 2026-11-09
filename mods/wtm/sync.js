@@ -22,3 +22,14 @@ export function decide({ event, world }) {
 
   return [];
 }
+
+// A resync replays each snapshot's worktrees as created events: decide() opens the missing ones.
+export function replay(snapshot) {
+  if (!Array.isArray(snapshot.worktrees)) return [];
+  return snapshot.worktrees.map((worktree) => ({ type: EVENT.created, repo: snapshot.repo, worktree }));
+}
+
+// A resync closes every local space whose folder and first terminal's folder are both gone.
+export function sweep({ world }) {
+  return world.spaces.filter((space) => space.gone).map((space) => ({ kind: "close", id: space.id }));
+}
