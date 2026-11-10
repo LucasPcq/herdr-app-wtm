@@ -103,6 +103,7 @@ export function pane(theme) {
     tinyIconSize: 12,
     guideWidth: 18,
     treeLead: 6,
+    appIndent: 17,
     menuWidth: 200,
     pressedOpacity: 0.9,
     background: theme.background,

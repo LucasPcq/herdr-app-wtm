@@ -34,6 +34,10 @@ export const EVENT = {
 };
 
 export const JOB_STATE = { starting: "starting", running: "running", crashed: "crashed", stopped: "stopped" };
+// `wtm run ps` statuses of a job that is up: detached (compose in the background), joined (a shared service).
+export const PS_UP = ["running", "starting", "detached", "joined"];
+// A runner's apps bind a moment after it starts: `run ps` is read again then.
+export const PS_SETTLE_MS = 5_000;
 // Written by the worker after wtm exits: {"type": EXIT_EVENT, "code": n}.
 export const EXIT_EVENT = "herdr-app-wtm.exit";
 // 2: invalid invocation; 20: an event of a schema newer than this wtm. No retry changes them.

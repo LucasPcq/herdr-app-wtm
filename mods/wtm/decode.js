@@ -39,7 +39,17 @@ export function decodeProfiles(stdout) {
 export function decodePs(stdout) {
   return list(parseArray(stdout))
     .filter((job) => job?.name && job.branch)
-    .map((job) => ({ name: job.name, branch: job.branch, path: job.path ?? null, status: job.status ?? null, startedAt: Number.isNaN(Date.parse(job.started_at)) ? null : Date.parse(job.started_at) }));
+    .map((job) => ({
+      name: job.name,
+      branch: job.branch,
+      path: job.path ?? null,
+      status: job.status ?? null,
+      startedAt: Number.isNaN(Date.parse(job.started_at)) ? null : Date.parse(job.started_at),
+      // A runner binds nothing itself: the apps it started and where they answer.
+      held: list(job.held)
+        .filter((app) => app?.job)
+        .map((app) => ({ job: app.job, url: webUrl(app.url) })),
+    }));
 }
 
 export function decodePrune(stdout) {

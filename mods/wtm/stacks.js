@@ -1,4 +1,4 @@
-import { JOB_STATE } from "./constants.js";
+import { JOB_STATE, PS_UP } from "./constants.js";
 import { inside, normalize } from "./paths.js";
 
 // What the pane shows, derived from the model and wtm's on-demand outputs. Pure.
@@ -81,8 +81,22 @@ export function refreshKey({ context, places }) {
 
 // When the jobs still running at a path started (`wtm run ps` also lists stopped ones).
 export function upSince({ ps, path }) {
-  const starts = ps.filter((job) => job.path === path && UP.has(job.status) && job.startedAt != null).map((job) => job.startedAt);
+  const starts = ps.filter((job) => job.path === path && PS_UP.includes(job.status) && job.startedAt != null).map((job) => job.startedAt);
   return starts.length > 0 ? Math.min(...starts) : null;
+}
+
+// The addresses the runner `name` answers on in the worktree at `path`, while up.
+export function appsOf({ ps, path, name }) {
+  const runner = ps.find((job) => job.path === path && job.name === name && PS_UP.includes(job.status));
+  return (runner?.held ?? []).filter((app) => app.url);
+}
+
+// Every job's state, as one string: a change means `run ps` is worth reading again.
+export function jobsKey({ model }) {
+  return Object.values(model.repos)
+    .flatMap((repo) => Object.values(repo.worktrees).flatMap((worktree) => Object.values(worktree.jobs).map((job) => `${worktree.path}:${job.name}:${job.state}`)))
+    .sort()
+    .join("|");
 }
 
 export function actionRepo({ context, shown }) {

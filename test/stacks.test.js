@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionFolder, actionRepo, activeProfile, age, refreshKey, splitJobs, upSince, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
+import { actionFolder, actionRepo, appsOf, jobsKey, activeProfile, age, refreshKey, splitJobs, upSince, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
 
 const wt = (branch, parent = null, jobs = {}, path = `/w/${branch}`) => ({ branch, path, parent, isMain: parent === null, jobs });
 const job = (name, state) => ({ name, kind: "service", state, url: null, shared: false, exitCode: null });
@@ -128,4 +128,28 @@ test("splitJobs separates lasting services from tasks", () => {
   const { services, tasks } = splitJobs({ jobs: { web: job("web", "running"), migrate: task, api: job("api", "stopped") } });
   assert.deepEqual(services.map((j) => j.name), ["api", "web"]);
   assert.deepEqual(tasks.map((j) => j.name), ["migrate"]);
+});
+
+test("appsOf lists the addresses a runner holds in one worktree", () => {
+  const ps = [
+    { name: "dev:crm", branch: "x", path: "/w/x", status: "running", held: [{ job: "crm-api-dev", url: "http://api" }, { job: "crm-web-dev", url: null }] },
+    { name: "dev:crm", branch: "main", path: "/w/main", status: "stopped", held: [{ job: "crm-api-dev", url: "http://old" }] },
+  ];
+  assert.deepEqual(appsOf({ ps, path: "/w/x", name: "dev:crm" }), [{ job: "crm-api-dev", url: "http://api" }]);
+  assert.deepEqual(appsOf({ ps, path: "/w/main", name: "dev:crm" }), []);
+  assert.deepEqual(appsOf({ ps, path: "/w/y", name: "dev:crm" }), []);
+});
+
+test("upSince counts detached and joined jobs as up", () => {
+  const ps = [
+    { name: "compose", path: "/w/x", status: "detached", startedAt: 100 },
+    { name: "db", path: "/w/x", status: "joined", startedAt: 50 },
+  ];
+  assert.equal(upSince({ ps, path: "/w/x" }), 50);
+});
+
+test("jobsKey changes when any job changes state", () => {
+  const model = (state) => ({ repos: { "/r/.git": repoOf([wt("main", null, { api: job("api", state) })], "/r") } });
+  assert.equal(jobsKey({ model: model("running") }), jobsKey({ model: model("running") }));
+  assert.notEqual(jobsKey({ model: model("running") }), jobsKey({ model: model("stopped") }));
 });

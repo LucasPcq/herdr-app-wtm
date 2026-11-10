@@ -5,10 +5,10 @@
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { exec, notify, openOverlay, props, run, shared, spaces, theme } from "herdr";
-import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, TOAST_MS, TOASTS, WTM_BIN } from "./constants.js";
+import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, PS_SETTLE_MS, SHARED, STATE, TOAST_MS, TOASTS, WTM_BIN } from "./constants.js";
 import { decodeProfiles, decodePrune, decodePs, decodeStatus, decodeTree } from "./decode.js";
 import { EMPTY_MODEL } from "./model.js";
-import { actionFolder, actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, refreshKey, running, splitJobs, upSince } from "./stacks.js";
+import { actionFolder, actionRepo, activeProfile, age, appsOf, jobsKey, contextOf, elsewhere, forest, indicator, refreshKey, running, splitJobs, upSince } from "./stacks.js";
 import { ICON, pane as paneStyle } from "./style.js";
 import { shownCommonDirs } from "./world.js";
 
@@ -34,7 +34,9 @@ export class Pane {
     this.profile = null;
     this.profilesOpen = false;
     this.elsewhereOpen = true;
+    this.openRepos = new Set();
     this.key = null;
+    this.jobsKey = null;
   }
 
   folder() {
@@ -76,6 +78,17 @@ export class Pane {
     });
   }
 
+  // Job states changed: read `run ps` for the addresses and start times, then once
+  // more when a runner's apps have had time to bind.
+  reloadPs(cx) {
+    const load = async (cx) => {
+      this.ps = decodePs(await wtm({ args: ["run", "ps", "--output", "json"] }));
+      cx.notify();
+    };
+    cx.spawn(load);
+    cx.timer.after(PS_SETTLE_MS, (cx) => cx.spawn(load));
+  }
+
   // A hidden action with a toast when it starts and one when it ends.
   act({ cx, args, cwd, toast, about }) {
     notify({ title: toast.start(about), body: about.repo, level: "info", timeout: TOAST_MS });
@@ -95,6 +108,11 @@ export class Pane {
     if (key !== this.key) {
       this.key = key;
       this.refresh(cx);
+    }
+    const jobs = jobsKey({ model: view.model });
+    if (jobs !== this.jobsKey) {
+      this.jobsKey = jobs;
+      this.reloadPs(cx);
     }
     const away = elsewhere({ model: view.model, shown: this.shown });
     return v_flex()
@@ -173,7 +191,7 @@ export class Pane {
         el
           .child(div().h(1).bg(s.border))
           .child(subTitle({ s, title: s.labels.services, meta: s.labels.servicesUp(services.filter((job) => UP.has(job.state)).length, services.length) }))
-          .child(v_flex().px(6).pb(6).children(services.map((job) => serviceRow({ s, job })))),
+          .child(v_flex().px(6).pb(6).children(services.flatMap((job) => serviceRows({ s, job, apps: appsOf({ ps: this.ps, path: worktree.path, name: job.name }) })))),
       )
       .when(tasks.length > 0, (el) =>
         el
@@ -293,12 +311,23 @@ export class Pane {
   repoGroup({ s, repo, context }) {
     const worktrees = Object.values(repo.worktrees);
     const up = worktrees.reduce((sum, worktree) => sum + running({ jobs: worktree.jobs }), 0);
+    const open = this.openRepos.has(repo.commonDir);
     const header = h_flex()
+      .id(`wtm-repo-${repo.commonDir}`)
       .h(s.rowHeight)
       .px(s.rowPadX)
       .gap(8)
       .items_center()
+      .rounded(s.rowRadius)
       .font_medium()
+      .cursor_pointer()
+      .hover((h) => h.bg(s.hover))
+      .on_click((_event, cx) => {
+        if (open) this.openRepos.delete(repo.commonDir);
+        else this.openRepos.add(repo.commonDir);
+        cx.notify();
+      })
+      .child(svg(open ? ICON.down : ICON.right).size(s.tinyIconSize).text_color(s.muted))
       .child(svg(ICON.folder).size(s.smallIconSize).text_color(s.muted))
       .child(div().flex_1().min_w(0).truncate().child(basename(repo.root)))
       .child(
@@ -312,9 +341,9 @@ export class Pane {
           .child(s.labels.worktrees(worktrees.length)),
       );
     return v_flex()
-      .pb(10)
+      .pb(open ? 10 : 2)
       .child(header)
-      .children(forest({ repo }).map((row) => this.treeRow({ s, repo, row, context })));
+      .when(open, (el) => el.children(forest({ repo }).map((row) => this.treeRow({ s, repo, row, context }))));
   }
 
   treeRow({ s, repo, row, context }) {
@@ -426,6 +455,11 @@ function goTo({ repo, branch, path }) {
   if (path) run("space.new", { folder: path });
 }
 
+// An address as the pane shows it: without its scheme.
+function bare(url) {
+  return url.replace(/^https?:\/\//, "");
+}
+
 function basename(path) {
   return (path ?? "").replace(/\/+$/, "").split("/").pop();
 }
@@ -473,10 +507,33 @@ function elbow({ s, last }) {
     .child(div().absolute().left(8).top(middle).w(8).border_t(1).border_color(s.guide));
 }
 
+// A service, then the addresses of the apps it runs (a runner binds none itself).
+function serviceRows({ s, job, apps }) {
+  return [serviceRow({ s, job }), ...apps.map((app) => appRow({ s, job, app }))];
+}
+
+function appRow({ s, job, app }) {
+  return h_flex()
+    .id(`wtm-app-${job.name}-${app.job}`)
+    .h(s.treeRowHeight)
+    .pl(s.rowPadX + s.appIndent)
+    .pr(s.rowPadX)
+    .gap(10)
+    .items_center()
+    .rounded(s.rowRadius)
+    .cursor_pointer()
+    .hover((h) => h.bg(s.hover))
+    .tooltip(app.url)
+    .on_click(() => openUrl(app.url))
+    .child(div().flex_none().text_size(s.smallTextSize).text_color(s.muted).child(app.job))
+    .child(div().flex_1().min_w(0).truncate().text_right().text_size(s.smallTextSize).text_color(s.foreground).child(bare(app.url)))
+    .child(svg(ICON.open).size(s.tinyIconSize).text_color(s.muted));
+}
+
 function serviceRow({ s, job }) {
   const color = { [JOB_STATE.running]: s.running, [JOB_STATE.starting]: s.starting, [JOB_STATE.crashed]: s.crashed }[job.state] ?? s.stopped;
   const off = !UP.has(job.state) && job.state !== JOB_STATE.crashed;
-  const detail = job.state === JOB_STATE.crashed ? s.labels.exit(job.exitCode) : off ? s.labels.stopped : (job.url ?? "").replace(/^https?:\/\//, "");
+  const detail = job.state === JOB_STATE.crashed ? s.labels.exit(job.exitCode) : off ? s.labels.stopped : bare(job.url ?? "");
   return h_flex()
     .id(`wtm-job-${job.name}`)
     .h(s.rowHeight)
