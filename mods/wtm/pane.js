@@ -215,12 +215,17 @@ export class Pane {
       .when(entry.dirty, (el) => el.child(chip({ s, text: s.labels.modified, color: s.modified, dotted: true })))
       .when(Boolean(entry.pr), (el) => el.child(chip({ s, id: "pr", text: s.labels.pr(entry.pr), onClick: entry.pr.url ? () => openUrl(entry.pr.url) : null })))
       .when(entry.needsSync, (el) =>
-        el.child(chip({ s, text: s.labels.needsSync, color: s.needsSync, dotted: true })).child(
-          outlineButton({
+        el.child(
+          chip({
             s,
             id: "sync",
-            label: s.labels.sync,
-            onClick: (cx) => this.act({ cx, args: ["sync", worktree.branch, "--yes", "--no-push"], cwd: repo.root, toast: TOASTS.sync, about: { branch: worktree.branch, repo: repoName } }),
+            text: s.labels.needsSync,
+            color: s.needsSync,
+            dotted: true,
+            action: {
+              label: s.labels.sync,
+              onClick: (cx) => this.act({ cx, args: ["sync", worktree.branch, "--yes", "--no-push"], cwd: repo.root, toast: TOASTS.sync, about: { branch: worktree.branch, repo: repoName } }),
+            },
           }),
         ),
       );
@@ -610,7 +615,8 @@ function dot({ s, color }) {
   return div().flex_none().size(s.dotSize).rounded_full().bg(color);
 }
 
-function chip({ s, id, text, color, dotted = false, onClick }) {
+// A small tag; `action` adds a clickable part after a divider, at the tag's height.
+function chip({ s, id, text, color, dotted = false, onClick, action }) {
   return h_flex()
     .when(Boolean(id), (el) => el.id(`wtm-chip-${id}`))
     .flex_none()
@@ -625,7 +631,25 @@ function chip({ s, id, text, color, dotted = false, onClick }) {
     .text_color(color ?? s.muted)
     .when(dotted, (el) => el.child(dot({ s, color })))
     .when(Boolean(onClick), (el) => el.cursor_pointer().hover((h) => h.text_color(s.foreground)).on_click(() => onClick()))
-    .child(text);
+    .child(text)
+    .when(Boolean(action), (el) =>
+      el.child(div().w(1).h_full().bg(s.border)).child(
+        div()
+          .id(`wtm-chip-${id}-action`)
+          .h_full()
+          .flex()
+          .items_center()
+          .text_color(s.foreground)
+          .font_medium()
+          .cursor_pointer()
+          .hover((h) => h.text_color(color ?? s.foreground))
+          .on_click((_event, cx) => {
+            cx.stop_propagation();
+            action.onClick(cx);
+          })
+          .child(action.label),
+      ),
+    );
 }
 
 function countBadge({ s, count }) {
