@@ -21,7 +21,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - A click toggles the pane in the active tab (`pane.split { direction: "right", mod: "wtm", props: { pane: true, tab } }` / `pane.close`). A press drags the button; a drag can end in a click that toggles the pane.
 - The pane's job states change live (every event folds into a model the service copy publishes with `setShared("wtm.model")`); `wtm status`, `tree` (then `--with-prs`), `run list`, `run ps` and `prune --dry-run --no-fetch` are read on open, on Refresh and after an action.
 - Interactive actions open a tab running `sh -c '"$@"; exec "${SHELL:-sh}"' sh wtm …` in the repository; Up, Down, Sync and stop run hidden with `exec` and notify on failure.
-- `herdr-app do wtm.stop` removes the worker and closes the pill.
+- `herdr-app do wtm.stop` removes the worker and closes the button.
 - Agent statuses play no part.
 
 ## Built from
@@ -42,7 +42,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - `exec` does not stream; `watchFolder` sees created and renamed entries but not appends, and seems to skip hidden folders: hence one file per event in a non-hidden folder.
 - `fs` writes only under `~/.config/herdr-app` and reads only inside home: use `exec` for the inbox's writes and for `test -e` on worktree paths.
 - `space.new` selects the new space: select the previous one right after.
-- Windows are placed by absolute `at` only, and a mod cannot read the window's size: measure it with a share-sized dialog. A popup ignores its height share (sized by content), `1` reads as one pixel, and Herdr keeps windows off the bottom edge, so a pill aimed at the status bar lands above it.
+- Windows are placed by absolute `at` only, and a mod cannot read the window's size: measure it with a share-sized dialog. A popup ignores its height share (sized by content), `1` reads as one pixel, and Herdr keeps windows off the bottom edge, so a button aimed at the status bar lands above it.
 - Two copies can run (two layouts, two clients): the rename-claim makes each event handled once.
 - The Files/Changes panel is part of Herdr's read-only layout: the pane is a mod pane in the active tab instead, and a mod cannot set its width (it halves the pane beside it).
 - Only the service copy reads the inbox, so the pane reads live data from `shared`, never from the inbox.
