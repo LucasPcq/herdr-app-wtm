@@ -1,3 +1,4 @@
+import { WTM_BIN } from "./constants.js";
 import { parse } from "./inbox.js";
 
 // wtm's on-demand JSON outputs, decoded into the shapes the pane reads. Anything
@@ -9,7 +10,8 @@ export function decodeStatus(stdout) {
   return {
     isolation: typeof status.isolation === "string" ? status.isolation : null,
     problems: list(status.problems)
-      .filter((problem) => typeof problem?.fix === "string" && problem.fix)
+      // A fix runs in a shell when clicked: only wtm's own commands.
+      .filter((problem) => typeof problem?.fix === "string" && problem.fix.startsWith(`${WTM_BIN} `))
       .map((problem) => ({ code: problem.code ?? null, message: problem.message ?? "", fix: problem.fix })),
     missingEnv: list(status.env?.missing).filter((name) => typeof name === "string"),
   };
@@ -24,7 +26,7 @@ function flatten(node) {
   const children = list(node?.children).flatMap(flatten);
   if (!node?.path || node.is_virtual) return children;
   const status = node.status ?? {};
-  const pr = node.pr?.number ? { number: node.pr.number, state: node.pr.state ?? null, url: node.pr.url ?? null } : null;
+  const pr = node.pr?.number ? { number: node.pr.number, state: node.pr.state ?? null, url: webUrl(node.pr.url) } : null;
   return [[node.path, { ahead: status.commits_ahead ?? 0, dirty: status.is_dirty === true, needsSync: status.needs_sync === true, pr }], ...children];
 }
 
@@ -42,6 +44,16 @@ export function decodePs(stdout) {
 
 export function decodePrune(stdout) {
   return list(parse(stdout)?.pruned).length;
+}
+
+// An address the pane may hand to `open`: http or https only.
+export function webUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseArray(text) {

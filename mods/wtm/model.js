@@ -1,4 +1,5 @@
 import { EVENT, JOB_STATE } from "./constants.js";
+import { webUrl } from "./decode.js";
 
 // Every repository's worktrees and jobs, folded from wtm's events. Pure and
 // JSON-shaped: the service copy publishes it with setShared.
@@ -60,7 +61,7 @@ function jobOf(job) {
     name: job.name,
     kind: job.kind ?? null,
     state: job.state ?? JOB_STATE.stopped,
-    url: job.url ?? null,
+    url: webUrl(job.url),
     shared: job.shared === true,
     exitCode: job.exit_code ?? null,
   };

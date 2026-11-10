@@ -444,7 +444,7 @@ function problemAlert({ s, problem, index, folder }) {
         .child(div().text_color(s.problem).font_medium().child(problem.message))
         .child(div().truncate().text_color(s.muted).text_size(s.smallTextSize).child(problem.fix)),
     )
-    .child(outlineButton({ s, id: `fix-${index}`, label: s.labels.fix, onClick: () => openShellLine({ line: problem.fix, folder }) }));
+    .child(outlineButton({ s, id: `fix-${index}`, label: s.labels.fix, tooltip: problem.fix, onClick: () => openShellLine({ line: problem.fix, folder }) }));
 }
 
 const SHOWN_STATES = new Set([JOB_STATE.running, JOB_STATE.starting, JOB_STATE.crashed]);
