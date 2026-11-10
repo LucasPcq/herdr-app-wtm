@@ -22,6 +22,11 @@
   <em>One button in the top bar opens your worktrees pane; the sidebar follows your worktrees.</em>
 </p>
 
+<p align="center">
+  <img alt="The worktrees pane: the current worktree with its running profile, its services and the addresses their apps answer on, its tasks, then every repository's stacks" src="docs/assets/pane.png" width="560"><br>
+  <em>The pane: this worktree's stack and where to reach it, then every stack.</em>
+</p>
+
 ## Highlights
 
 - **`wtm create` opens a space**, whoever ran it.
