@@ -5,7 +5,7 @@
   </picture>
 </p>
 
-<p align="center">A <a href="https://herdr.dev">Herdr app</a> mod for <a href="https://github.com/LucasPcq/wtm">wtm</a>: each worktree you create opens as a space, each one you remove closes its space, whoever ran the command.</p>
+<p align="center">A <a href="https://herdr.dev">Herdr app</a> mod for <a href="https://github.com/LucasPcq/wtm">wtm</a>: each worktree you create opens as a space, each one you remove closes its space, whoever ran the command; one click shows your stacks and their jobs.</p>
 
 <p align="center">
   <a href="https://github.com/LucasPcq/herdr-app-wtm/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/LucasPcq/herdr-app-wtm?sort=semver&color=E8734A"></a>
@@ -29,7 +29,8 @@
 - **`wtm clean` and `wtm prune` close the space.**
 - **Never closes the main checkout's space.**
 - **Only repositories you have open.**
-- **One button in the top bar** shows whether sync runs.
+- **One click opens the worktrees pane**: the current worktree, its jobs and problems, your stacks, what still runs elsewhere.
+- **Daily wtm actions in reach**: new, exec, env, prune, sync, up and down, clean.
 
 ## Install
 
