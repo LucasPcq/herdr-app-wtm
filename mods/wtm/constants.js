@@ -66,6 +66,8 @@ export const COMMAND = { stop: "stop", sync: "sync", retry: "retry" };
 export const SHARED = { model: "wtm.model", status: "wtm.status" };
 
 export const WTM_BIN = "wtm";
+// For wtm commands that may call GitHub, rebase or start a profile (exec defaults to 30 s).
+export const LONG_EXEC_MS = 600_000;
 export const NOTIFY_TITLE = "wtm";
 
 // Notification bodies, shown once when the pill enters a blocked state.

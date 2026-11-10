@@ -35,12 +35,26 @@ async function exists(path) {
 async function repoShown({ commonDir, local, cache }) {
   if (!commonDir) return false;
   for (const { place } of local) {
-    if (!place) continue;
-    if (!cache.has(place)) cache.set(place, await commonDirOf(place));
-    const dir = cache.get(place);
+    const dir = await cachedCommonDir({ folder: place, cache });
     if (dir && normalize(dir) === normalize(commonDir)) return true;
   }
   return false;
+}
+
+// The repositories the window shows (a local space's place is in one), in space order.
+export async function shownCommonDirs({ cache }) {
+  const dirs = [];
+  for (const { place } of localSpaces()) {
+    const dir = await cachedCommonDir({ folder: place, cache });
+    if (dir && !dirs.includes(normalize(dir))) dirs.push(normalize(dir));
+  }
+  return dirs;
+}
+
+async function cachedCommonDir({ folder, cache }) {
+  if (!folder) return null;
+  if (!cache.has(folder)) cache.set(folder, await commonDirOf(folder));
+  return cache.get(folder);
 }
 
 async function commonDirOf(folder) {

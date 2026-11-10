@@ -76,3 +76,12 @@ export function elsewhere({ model, shown }) {
       .filter((row) => row.running > 0),
   );
 }
+
+// How long something has run, the way the pane shows it: "12 min", "6 h", "3 d".
+export function age({ since, now }) {
+  if (since == null) return null;
+  const minutes = Math.max(1, Math.floor((now - since) / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 24 ? `${hours} h` : `${Math.floor(hours / 24)} d`;
+}

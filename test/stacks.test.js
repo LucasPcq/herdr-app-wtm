@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionRepo, activeProfile, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
+import { actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
 
 const wt = (branch, parent = null, jobs = {}, path = `/w/${branch}`) => ({ branch, path, parent, isMain: parent === null, jobs });
 const job = (name, state) => ({ name, kind: "service", state, url: null, shared: false, exitCode: null });
@@ -72,4 +72,13 @@ test("elsewhere lists running worktrees of repositories not shown", () => {
 test("running counts running and starting jobs", () => {
   assert.equal(running({ jobs: { a: job("a", "running"), b: job("b", "starting"), c: job("c", "crashed") } }), 2);
   assert.equal(running({ jobs: undefined }), 0);
+});
+
+test("age reads minutes, hours, then days, and nothing without a start", () => {
+  const now = Date.parse("2026-11-10T12:00:00Z");
+  assert.equal(age({ since: now - 12 * 60_000, now }), "12 min");
+  assert.equal(age({ since: now - 30_000, now }), "1 min");
+  assert.equal(age({ since: now - 6 * 3_600_000, now }), "6 h");
+  assert.equal(age({ since: now - 3 * 86_400_000, now }), "3 d");
+  assert.equal(age({ since: null, now }), null);
 });
