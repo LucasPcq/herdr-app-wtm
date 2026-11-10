@@ -22,7 +22,18 @@ export const EVENT = {
   removed: "worktree.removed",
   snapshot: "snapshot",
   ready: "ready",
+  updated: "worktree.updated",
+  reparented: "worktree.reparented",
+  relocated: "worktree.relocated",
+  repoAdded: "repo.added",
+  repoRemoved: "repo.removed",
+  jobStarted: "job.started",
+  jobStopped: "job.stopped",
+  jobExited: "job.exited",
+  jobCrashed: "job.crashed",
 };
+
+export const JOB_STATE = { starting: "starting", running: "running", crashed: "crashed", stopped: "stopped" };
 // Written by the worker after wtm exits: {"type": EXIT_EVENT, "code": n}.
 export const EXIT_EVENT = "herdr-app-wtm.exit";
 // 2: invalid invocation; 20: an event of a schema newer than this wtm. No retry changes them.
