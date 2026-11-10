@@ -63,17 +63,23 @@ mods/wtm/
   constants.js   every name, path, code, timing, message — no functions
   paths.js       pure: normalize, inside, placeOf
   sync.js        pure: decide({ event, world }), replay(snapshot), sweep({ world }) → actions
+  model.js       pure: reduce({ model, event }) → the live worktrees and jobs
+  decode.js      pure: wtm status, tree, run list, run ps, prune output → shapes
+  stacks.js      pure: forest, indicator, contextOf, actionRepo, activeProfile, elsewhere
+  toggle.js      pure: toggle({ focused, panes, mod }), paneOpen — what the button does
   anchor.js      pure: where the button opens, from the window's size and style.js
   inbox.js       claim, read, remove event files — pure helpers, I/O injected
   worker.js      the hc worker: its sh script, start, reuse, stop — hc injected
-  style.js       the button's whole look and place — no logic
-  world.js       host: what decide() needs about the window, for one event
-  main.js        host: launcher vs service copy, startup, drain loop, the button
+  style.js       the button's and the pane's whole look and labels — no logic
+  icons/         Lucide icons (ISC) the button and the pane draw
+  world.js       host: what decide() needs about the window, for one event; shown repositories
+  pane.js        host: the pane role — loads wtm's on-demand data, runs actions, draws
+  main.js        host: launcher, service copy and pane roles, startup, drain loop, the button
 test/            node --test, no dependencies, no Herdr
 ```
 
-- `paths.js`, `sync.js` and `anchor.js` import only each other and `constants.js`; `inbox.js` and `worker.js` take their I/O as arguments. None imports `herdr` or `gpui-kit`, so all of them run under Node.
-- Only `main.js` and `world.js` call the Herdr host (`exec`, `hc`, `run`, `spaces`, `panes`, `focused`, `watchFolder`, `notify`, `openOverlay`).
+- `paths.js`, `sync.js`, `model.js`, `decode.js`, `stacks.js`, `toggle.js` and `anchor.js` import only each other, `inbox.js`'s `parse` and `constants.js`; `inbox.js` and `worker.js` take their I/O as arguments. None imports `herdr` or `gpui-kit`, so all of them run under Node.
+- Only `main.js`, `world.js` and `pane.js` call the Herdr host (`exec`, `hc`, `run`, `spaces`, `panes`, `focused`, `shared`, `setShared`, `watchFolder`, `notify`, `openOverlay`).
 - `sync.js` decides, never acts; `main.js` runs the actions.
 - Changing `SCRIPT` in `worker.js` means bumping `SCRIPT_VERSION` in `constants.js`, so running workers are replaced.
 
