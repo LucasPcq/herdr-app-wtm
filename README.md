@@ -23,8 +23,8 @@
 </p>
 
 <p align="center">
-  <img alt="The worktrees pane: actions, the current worktree with its services, tasks and profile, then every repository's stacks" src="docs/assets/pane.png" width="560"><br>
-  <em>The pane: this worktree's services, tasks and profile, then every stack.</em>
+  <img alt="The worktrees pane: the current worktree with its running profile, its services and the addresses their apps answer on, its tasks, then every repository's stacks" src="docs/assets/pane.png" width="560"><br>
+  <em>The pane: this worktree's stack and where to reach it, then every stack.</em>
 </p>
 
 ## Highlights
