@@ -18,8 +18,8 @@
 </p>
 
 <p align="center">
-  <img alt="The wtm button in Herdr's top bar, left of the + button, Files and Changes" src="docs/assets/button.png" width="450"><br>
-  <em>One button in the top bar; the sidebar follows your worktrees.</em>
+  <img alt="The wtm button in Herdr's top bar, with a branch icon, left of the + button, Files and Changes" src="docs/assets/button.png" width="450"><br>
+  <em>One button in the top bar opens your worktrees pane; the sidebar follows your worktrees.</em>
 </p>
 
 ## Highlights
