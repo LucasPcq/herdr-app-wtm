@@ -5,10 +5,11 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { closeOverlay, exec, hc, home, nextCommand, notify, openOverlay, props, run, theme, watchFolder } from "herdr";
+import { closeOverlay, exec, hc, home, nextCommand, notify, openOverlay, props, run, setShared, theme, watchFolder } from "herdr";
 import * as fs from "fs/promises";
 import { anchor } from "./anchor.js";
-import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MESSAGES, MIN_EVENTS, MOD, NOTIFY_TITLE, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
+import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MESSAGES, MIN_EVENTS, MOD, NOTIFY_TITLE, SHARED, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
+import { EMPTY_MODEL, reduce } from "./model.js";
 import { createInbox } from "./inbox.js";
 import { style } from "./style.js";
 import { decide, replay, sweep } from "./sync.js";
@@ -49,6 +50,9 @@ export default class Wtm extends View {
     this.draining = false;
     this.drainAgain = false;
     this.resyncing = false;
+    this.model = EMPTY_MODEL;
+    // A reused worker sends no snapshot: the first start restarts it so the model fills.
+    this.fresh = true;
     cx.spawn(async (cx) => this.start(cx));
     cx.spawn(async (cx) => this.listenForCommands(cx));
     cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.check(cx)));
@@ -75,6 +79,11 @@ export default class Wtm extends View {
     try {
       const made = await exec("mkdir", ["-p", dir]);
       if (made.code !== 0) throw new Error(made.stderr.trim() || `cannot create ${dir}`);
+      if (this.fresh) {
+        this.fresh = false;
+        this.runId = null;
+        await stopWorker({ hc });
+      }
       this.runId = await ensureWorker({ hc, inbox: dir, wtm, run: Math.random().toString(36).slice(2, 10) });
       this.inbox = createInbox({ dir, copyId: this.copyId, io: hostIo });
       await this.inbox.releaseStale();
@@ -153,6 +162,7 @@ export default class Wtm extends View {
 
   async handle(event, cx) {
     if (!event) return;
+    this.fold(event);
     if (event.type === EXIT_EVENT) return this.exited(event, cx);
     if (event.type === EVENT.snapshot) return this.replaySnapshot(event, cx);
     if (event.type === EVENT.ready) {
@@ -166,6 +176,13 @@ export default class Wtm extends View {
     } catch (error) {
       console.log(`wtm: ${event.type} ${event.worktree.path}: ${error.message ?? error}`);
     }
+  }
+
+  fold(event) {
+    const model = reduce({ model: this.model, event });
+    if (model === this.model) return;
+    this.model = model;
+    setShared(SHARED.model, model);
   }
 
   async replaySnapshot(event, cx) {
@@ -204,6 +221,10 @@ export default class Wtm extends View {
       const command = await nextCommand();
       // Touching cx ends this loop once a reload replaced the copy.
       cx.notify();
+      if (command === COMMAND.retry) {
+        if (BLOCKED.has(this.state)) cx.spawn(async (cx) => this.start(cx));
+        continue;
+      }
       if (command === COMMAND.sync) {
         cx.spawn(async (cx) => this.resync(cx));
         continue;
@@ -219,6 +240,7 @@ export default class Wtm extends View {
   set(cx, { state, detail }) {
     const entering = state !== this.state;
     this.state = state;
+    setShared(SHARED.status, { state, detail: detail == null ? null : String(detail) });
     if (entering && BLOCKED.has(state)) notify({ title: NOTIFY_TITLE, body: message({ state, detail }), level: "error" });
     cx.notify();
   }

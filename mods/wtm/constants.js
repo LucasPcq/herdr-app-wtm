@@ -60,7 +60,10 @@ export const STATE = {
   error: "error",
 };
 
-export const COMMAND = { stop: "stop", sync: "sync" };
+export const COMMAND = { stop: "stop", sync: "sync", retry: "retry" };
+
+// Keys of shared(): what the service copy publishes for the pane.
+export const SHARED = { model: "wtm.model", status: "wtm.status" };
 
 export const WTM_BIN = "wtm";
 export const NOTIFY_TITLE = "wtm";
