@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionFolder, actionRepo, activeProfile, age, refreshKey, upSince, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
+import { actionFolder, actionRepo, activeProfile, age, refreshKey, splitJobs, upSince, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
 
 const wt = (branch, parent = null, jobs = {}, path = `/w/${branch}`) => ({ branch, path, parent, isMain: parent === null, jobs });
 const job = (name, state) => ({ name, kind: "service", state, url: null, shared: false, exitCode: null });
@@ -15,8 +15,8 @@ test("forest puts children under their parent with depth", () => {
 test("forest shows a missing parent as a virtual root", () => {
   const repo = repoOf([wt("feature/luc-333", "feature/luc-332")]);
   assert.deepEqual(forest({ repo }), [
-    { branch: "feature/luc-332", path: null, depth: 0, virtual: true },
-    { branch: "feature/luc-333", path: "/w/feature/luc-333", depth: 1, virtual: false },
+    { branch: "feature/luc-332", path: null, depth: 0, virtual: true, last: true, guides: [] },
+    { branch: "feature/luc-333", path: "/w/feature/luc-333", depth: 1, virtual: false, last: true, guides: [] },
   ]);
 });
 
@@ -115,4 +115,17 @@ test("refreshKey changes with the context and with the spaces' places", () => {
   assert.equal(a, refreshKey({ context: { commonDir: "/a/.git", branch: "x" }, places: ["/a", "/b"] }));
   assert.notEqual(a, refreshKey({ context: null, places: ["/a", "/b"] }));
   assert.notEqual(a, refreshKey({ context: { commonDir: "/a/.git", branch: "x" }, places: ["/a"] }));
+});
+
+test("forest tells each row whether it is the last child and which ancestor lines continue", () => {
+  const repo = repoOf([wt("main"), wt("feat", "main"), wt("feat-ui", "feat"), wt("feat-ui-2", "feat-ui"), wt("fix", "main")]);
+  const shape = forest({ repo }).map((row) => `${row.branch} ${row.last ? "last" : "mid"} [${row.guides.map((g) => (g ? "|" : " ")).join("")}]`);
+  assert.deepEqual(shape, ["main last []", "feat mid []", "feat-ui last [|]", "feat-ui-2 last [| ]", "fix last []"]);
+});
+
+test("splitJobs separates lasting services from tasks", () => {
+  const task = { ...job("migrate", "stopped"), kind: "task" };
+  const { services, tasks } = splitJobs({ jobs: { web: job("web", "running"), migrate: task, api: job("api", "stopped") } });
+  assert.deepEqual(services.map((j) => j.name), ["api", "web"]);
+  assert.deepEqual(tasks.map((j) => j.name), ["migrate"]);
 });

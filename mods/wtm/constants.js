@@ -70,13 +70,21 @@ export const WTM_BIN = "wtm";
 export const LONG_EXEC_MS = 600_000;
 export const NOTIFY_TITLE = "wtm";
 
-// Notification bodies, shown once when the pill enters a blocked state.
+// Notification bodies, shown once when sync enters a blocked state.
 export const MESSAGES = {
-  [STATE.wtmMissing]: "wtm is not on your PATH, so worktrees do not sync. Install it (brew install LucasPcq/tap/wtm), then click the wtm pill.",
-  [STATE.wtmTooOld]: "This wtm has no event stream. Upgrade it (wtm upgrade), then click the wtm pill.",
+  [STATE.wtmMissing]: "wtm is not on your PATH, so worktrees do not sync. Install it (brew install LucasPcq/tap/wtm), then click Retry in the wtm pane.",
+  [STATE.wtmTooOld]: "This wtm has no event stream. Upgrade it (wtm upgrade), then click Retry in the wtm pane.",
   stopped: (code) =>
     code === 20
-      ? "wtm received an event newer than itself and stopped. Upgrade wtm, then click the wtm pill."
-      : `wtm events stopped (exit ${code}). Click the wtm pill to start it again.`,
-  error: (detail) => `Worktree sync stopped: ${detail}. Click the wtm pill to retry.`,
+      ? "wtm received an event newer than itself and stopped. Upgrade wtm, then click Retry in the wtm pane."
+      : `wtm events stopped (exit ${code}). Click Retry in the wtm pane to start it again.`,
+  error: (detail) => `Worktree sync stopped: ${detail}. Click Retry in the wtm pane.`,
 };
+
+// Toasts for the pane's hidden actions: one when it starts, one when it ends.
+export const TOASTS = {
+  up: { start: ({ profile, branch }) => `Starting ${profile ?? "the default profile"} on ${branch}`, done: ({ profile, branch }) => `${profile ?? "Profile"} is up on ${branch}`, failed: ({ branch }) => `Up failed on ${branch}` },
+  down: { start: ({ branch }) => `Stopping the jobs of ${branch}`, done: ({ branch }) => `${branch} is down`, failed: ({ branch }) => `Down failed on ${branch}` },
+  sync: { start: ({ branch }) => `Rebasing ${branch} onto its parent`, done: ({ branch }) => `${branch} is in sync`, failed: ({ branch }) => `Sync failed on ${branch}` },
+};
+export const TOAST_MS = 4_000;

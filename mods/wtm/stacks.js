@@ -11,25 +11,38 @@ export function running({ jobs }) {
 
 // Parents before their children, siblings by name. A parent with no worktree is a
 // virtual root; worktrees only reachable through a cycle start their own root.
+// `last`: the last of its siblings; `guides[i]`: the ancestor at depth i + 1 has
+// siblings below it, so its line continues past this row.
 export function forest({ repo }) {
   const worktrees = Object.values(repo.worktrees);
   const byBranch = new Set(worktrees.map((worktree) => worktree.branch));
   const childrenOf = (branch) => worktrees.filter((worktree) => worktree.parent === branch).sort(byName);
   const visited = new Set();
-  const walk = ({ worktree, depth }) => {
+  const walk = ({ worktree, depth, last, guides }) => {
     if (visited.has(worktree.branch)) return [];
     visited.add(worktree.branch);
-    return [{ branch: worktree.branch, path: worktree.path, depth, virtual: false }, ...childrenOf(worktree.branch).flatMap((child) => walk({ worktree: child, depth: depth + 1 }))];
+    const below = depth === 0 ? [] : [...guides, !last];
+    return [{ branch: worktree.branch, path: worktree.path, depth, virtual: false, last, guides }, ...children({ branch: worktree.branch, depth, guides: below })];
+  };
+  const children = ({ branch, depth, guides }) => {
+    const list = childrenOf(branch).filter((child) => !visited.has(child.branch));
+    return list.flatMap((child, index) => walk({ worktree: child, depth: depth + 1, last: index === list.length - 1, guides: depth === 0 ? [] : guides }));
   };
 
   const roots = worktrees.filter((worktree) => !worktree.parent).sort((a, b) => Number(b.isMain) - Number(a.isMain) || byName(a, b));
   const virtual = [...new Set(worktrees.map((worktree) => worktree.parent).filter((parent) => parent && !byBranch.has(parent)))].sort();
   const rows = [
-    ...roots.flatMap((worktree) => walk({ worktree, depth: 0 })),
-    ...virtual.flatMap((branch) => [{ branch, path: null, depth: 0, virtual: true }, ...childrenOf(branch).flatMap((child) => walk({ worktree: child, depth: 1 }))]),
+    ...roots.flatMap((worktree) => walk({ worktree, depth: 0, last: true, guides: [] })),
+    ...virtual.flatMap((branch) => [{ branch, path: null, depth: 0, virtual: true, last: true, guides: [] }, ...children({ branch, depth: 0, guides: [] })]),
   ];
   const cycled = worktrees.filter((worktree) => !visited.has(worktree.branch)).sort(byName);
-  return [...rows, ...cycled.flatMap((worktree) => walk({ worktree, depth: 0 }))];
+  return [...rows, ...cycled.flatMap((worktree) => walk({ worktree, depth: 0, last: true, guides: [] }))];
+}
+
+// A task exits once done: the card lists services and tasks apart.
+export function splitJobs({ jobs }) {
+  const list = Object.values(jobs ?? {}).sort((a, b) => a.name.localeCompare(b.name));
+  return { services: list.filter((job) => job.kind !== "task"), tasks: list.filter((job) => job.kind === "task") };
 }
 
 function byName(a, b) {

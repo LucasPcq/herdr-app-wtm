@@ -2,7 +2,7 @@
 // shows, as large as the window so it can measure it) opens the kept window
 // where style.js says and closes; the service copy (that window, reopened on
 // every start) runs the worker and draws the button; the pane (pane.split
-// beside the terminals) shows the worktrees.
+// beside the terminals) shows the worktrees; the menu is the pane's ⋯ popup.
 
 import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
@@ -12,6 +12,7 @@ import { anchor } from "./anchor.js";
 import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MIN_EVENTS, MOD, NOTIFY_TITLE, SHARED, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
 import { EMPTY_MODEL, reduce, seed } from "./model.js";
 import { createInbox } from "./inbox.js";
+import { Menu } from "./menu.js";
 import { BLOCKED, message, Pane } from "./pane.js";
 import { button } from "./style.js";
 import { decide, replay, sweep } from "./sync.js";
@@ -33,6 +34,10 @@ const hostIo = {
 
 export default class Wtm extends View {
   init(_props, cx) {
+    if (props()?.menu) {
+      this.pane = new Menu();
+      return;
+    }
     if (props()?.pane) {
       this.pane = new Pane();
       return this.pane.init(cx);

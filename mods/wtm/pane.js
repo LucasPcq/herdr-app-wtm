@@ -1,18 +1,20 @@
 // The worktrees pane: a mod pane beside the terminals, opened by the button.
 // Live data comes from the service copy's shared model; the rest is loaded
-// with wtm on open and on refresh, never on a timer.
+// with wtm on open, on refresh and after an action, never on a timer.
 
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { exec, notify, props, run, shared, spaces, theme } from "herdr";
-import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, WTM_BIN } from "./constants.js";
+import { exec, notify, openOverlay, props, run, shared, spaces, theme } from "herdr";
+import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, TOAST_MS, TOASTS, WTM_BIN } from "./constants.js";
 import { decodeProfiles, decodePrune, decodePs, decodeStatus, decodeTree } from "./decode.js";
 import { EMPTY_MODEL } from "./model.js";
-import { actionFolder, actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, refreshKey, running, upSince } from "./stacks.js";
+import { actionFolder, actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, refreshKey, running, splitJobs, upSince } from "./stacks.js";
 import { ICON, pane as paneStyle } from "./style.js";
 import { shownCommonDirs } from "./world.js";
 
 export const BLOCKED = new Set([STATE.wtmMissing, STATE.wtmTooOld, STATE.streamStopped, STATE.error]);
+
+const UP = new Set([JOB_STATE.running, JOB_STATE.starting]);
 
 export function message({ state, detail }) {
   if (state === STATE.streamStopped) return MESSAGES.stopped(detail);
@@ -27,12 +29,11 @@ export class Pane {
     this.trees = {};
     this.ps = [];
     this.prune = 0;
-    this.elsewhereOpen = true;
     this.status = null;
     this.profiles = [];
     this.profile = null;
     this.profilesOpen = false;
-    this.menuOpen = false;
+    this.elsewhereOpen = true;
     this.key = null;
   }
 
@@ -63,15 +64,26 @@ export class Pane {
         context ? wtm({ args: ["status", context.branch, "--yes", "--output", "json"], cwd: repo.root }).then(decodeStatus) : null,
         context ? wtm({ args: ["run", "list", "--output", "json"], cwd: repo.root }).then(decodeProfiles) : [],
       ]);
-      this.status = status;
-      this.profiles = profiles;
       this.trees = trees;
       this.ps = ps;
       this.prune = prune;
+      this.status = status;
+      this.profiles = profiles;
       cx.notify();
       // PRs ask GitHub: shown once they come.
       this.trees = await loadTrees({ repos: roots, withPrs: true });
       cx.notify();
+    });
+  }
+
+  // A hidden action with a toast when it starts and one when it ends.
+  act({ cx, args, cwd, toast, about }) {
+    notify({ title: toast.start(about), body: about.repo, level: "info", timeout: TOAST_MS });
+    cx.spawn(async (cx) => {
+      const result = await direct({ args, cwd });
+      if (result.ok) notify({ title: toast.done(about), body: about.repo, level: "success", timeout: TOAST_MS });
+      else notify({ title: toast.failed(about), body: result.detail, level: "error" });
+      this.refresh(cx);
     });
   }
 
@@ -102,8 +114,7 @@ export class Pane {
   }
 
   actions({ s, view }) {
-    const repo = view.repo;
-    const disabled = !repo;
+    const disabled = !view.repo;
     const tooltip = disabled ? s.labels.noRepo : null;
     const open = (args) => () => openTerminal({ args, folder: view.folder });
     return h_flex()
@@ -118,44 +129,35 @@ export class Pane {
       .child(ghostIcon({ s, id: "refresh", icon: ICON.refresh, tooltip: s.labels.refresh, onClick: (cx) => this.refresh(cx) }));
   }
 
-  // A hidden action, then a refresh of what it may have changed.
-  act({ cx, args, cwd }) {
-    cx.spawn(async (cx) => {
-      await direct({ args, cwd });
-      this.refresh(cx);
-    });
-  }
-
   card({ s, view }) {
     const repo = view.repo;
     const worktree = repo.worktrees[view.context.branch];
-    const jobs = Object.values(worktree.jobs).sort((a, b) => a.name.localeCompare(b.name));
-    const up = running({ jobs: worktree.jobs }) > 0;
-    const description = [basename(repo.root), worktree.parent && `${s.labels.from} ${worktree.parent}`, this.status?.isolation].filter(Boolean).join(" · ");
+    const { services, tasks } = splitJobs({ jobs: worktree.jobs });
+    const upCount = running({ jobs: worktree.jobs });
+    const profile = this.profile ?? activeProfile({ profiles: this.profiles, jobs: worktree.jobs });
+    const repoName = basename(repo.root);
+    const description = [worktree.isMain ? s.labels.mainCheckout : worktree.parent && s.labels.from(worktree.parent), this.status?.isolation].filter(Boolean).join(" · ");
     const header = h_flex()
-      .gap(12)
-      .px(s.padding)
-      .pt(s.padding)
+      .gap(10)
+      .p(s.cardPadding)
       .pb(12)
       .items_start()
       .child(
         v_flex()
           .flex_1()
           .min_w(0)
-          .gap(6)
+          .gap(4)
           .child(h_flex().gap(8).items_center().text_size(s.titleSize).font_semibold().child(svg(ICON.branch).size(s.smallIconSize).text_color(s.muted)).child(div().truncate().child(worktree.branch)))
           .child(div().text_size(s.descriptionSize).text_color(s.muted).child(description)),
       )
-      .when(up, (el) => el.child(badge({ s, text: s.labels.running, color: s.running })))
+      .when(upCount > 0, (el) => el.child(chip({ s, text: s.labels.up(profile, upCount), color: s.running, dotted: true })))
       .child(
         ghostIcon({
           s,
           id: "menu",
           icon: ICON.more,
-          onClick: (cx) => {
-            this.menuOpen = !this.menuOpen;
-            cx.notify();
-          },
+          small: true,
+          onClick: () => openOverlay({ mod: MOD, kind: "popup", width: s.menuWidth, props: { menu: true, branch: worktree.branch, folder: view.folder } }),
         }),
       );
     const card = v_flex()
@@ -165,117 +167,64 @@ export class Pane {
       .bg(s.card)
       .overflow_hidden()
       .child(header)
-      .when(this.menuOpen, (el) => el.child(this.menu({ s, folder: view.folder, branch: worktree.branch })))
-      .child(this.stackLine({ s, repo, worktree }))
+      .child(this.chips({ s, repo, worktree, repoName }))
       .children((this.status?.problems ?? []).map((problem, index) => problemAlert({ s, problem, index, folder: view.folder })))
-      .when(jobs.length > 0, (el) => el.child(v_flex().px(8).pb(8).children(jobs.map((job) => jobRow({ s, job })))))
-      .child(this.footer({ s, repo, worktree, up, folder: view.folder }));
-    return v_flex().gap(s.groupGap).child(groupLabel({ s, text: s.labels.context })).child(card);
-  }
-
-  menu({ s, folder, branch }) {
-    const item = ({ id, label, color, args }) =>
-      h_flex()
-        .id(`wtm-menu-${id}`)
-        .h(s.rowHeight)
-        .px(8)
-        .items_center()
-        .rounded(s.rowRadius)
-        .cursor_pointer()
-        .text_color(color)
-        .hover((h) => h.bg(s.hover))
-        .on_click((_event, cx) => {
-          this.menuOpen = false;
-          cx.notify();
-          openTerminal({ args, folder });
-        })
-        .child(label);
-    return v_flex()
-      .mx(8)
-      .mb(8)
-      .p(4)
-      .rounded(s.buttonRadius)
-      .border(1)
-      .border_color(s.border)
-      .child(item({ id: "reparent", label: s.labels.reparent, color: s.foreground, args: ["reparent", branch] }))
-      .child(item({ id: "clean", label: s.labels.clean, color: s.crashed, args: ["clean", branch] }));
-  }
-
-  stackLine({ s, repo, worktree }) {
-    const entry = this.trees[repo.commonDir]?.[worktree.path];
-    if (!entry) return div();
-    const parts = [entry.ahead > 0 && `↑${entry.ahead}`, entry.dirty && s.labels.modified].filter(Boolean);
-    if (parts.length === 0 && !entry.pr && !entry.needsSync) return div();
-    return h_flex()
-      .px(s.padding)
-      .pb(12)
-      .gap(8)
-      .items_center()
-      .text_size(s.smallTextSize)
-      .text_color(s.muted)
-      .when(parts.length > 0, (el) => el.child(parts.join(" · ")))
-      .when(Boolean(entry.pr), (el) =>
-        el.child(
-          div()
-            .id("wtm-pr")
-            .cursor_pointer()
-            .hover((h) => h.text_color(s.foreground))
-            .when(Boolean(entry.pr.url), (d) => d.on_click(() => exec("open", [entry.pr.url])))
-            .child(`#${entry.pr.number}${entry.pr.state ? ` ${entry.pr.state.toLowerCase()}` : ""}`),
-        ),
-      )
-      .child(div().flex_1())
-      .when(entry.needsSync, (el) =>
+      .when(services.length > 0, (el) =>
         el
-          .child(badge({ s, text: s.labels.needsSync, color: s.needsSync }))
-          .child(outlineButton({ s, id: "sync", label: s.labels.sync, onClick: (cx) => this.act({ cx, args: ["sync", worktree.branch, "--yes", "--no-push"], cwd: repo.root }) })),
+          .child(div().h(1).bg(s.border))
+          .child(subTitle({ s, title: s.labels.services, meta: s.labels.servicesUp(services.filter((job) => UP.has(job.state)).length, services.length) }))
+          .child(v_flex().px(6).pb(6).children(services.map((job) => serviceRow({ s, job })))),
+      )
+      .when(tasks.length > 0, (el) =>
+        el
+          .child(subTitle({ s, title: s.labels.tasks, meta: s.labels.tasksDone(tasks.filter((job) => job.state === JOB_STATE.stopped).length) }))
+          .child(h_flex().flex_wrap().gap(6).px(s.cardPadding).pb(12).children(tasks.map((job) => taskChip({ s, job })))),
+      )
+      .child(this.footer({ s, repo, worktree, repoName, profile, up: upCount > 0, folder: view.folder }));
+    return v_flex().child(sectionHeader({ s, title: s.labels.context, meta: repoName })).child(card);
+  }
+
+  chips({ s, repo, worktree, repoName }) {
+    const entry = this.trees[repo.commonDir]?.[worktree.path];
+    if (!entry || (entry.ahead === 0 && !entry.dirty && !entry.pr && !entry.needsSync)) return div();
+    return h_flex()
+      .flex_wrap()
+      .gap(6)
+      .px(s.cardPadding)
+      .pb(12)
+      .items_center()
+      .when(entry.ahead > 0, (el) => el.child(chip({ s, text: s.labels.ahead(entry.ahead) })))
+      .when(entry.dirty, (el) => el.child(chip({ s, text: s.labels.modified, color: s.modified, dotted: true })))
+      .when(Boolean(entry.pr), (el) => el.child(chip({ s, id: "pr", text: s.labels.pr(entry.pr), onClick: entry.pr.url ? () => openUrl(entry.pr.url) : null })))
+      .when(entry.needsSync, (el) =>
+        el.child(chip({ s, text: s.labels.needsSync, color: s.needsSync, dotted: true })).child(
+          outlineButton({
+            s,
+            id: "sync",
+            label: s.labels.sync,
+            onClick: (cx) => this.act({ cx, args: ["sync", worktree.branch, "--yes", "--no-push"], cwd: repo.root, toast: TOASTS.sync, about: { branch: worktree.branch, repo: repoName } }),
+          }),
+        ),
       );
   }
 
-  footer({ s, repo, worktree, up, folder }) {
-    const profile = this.profile ?? activeProfile({ profiles: this.profiles, jobs: worktree.jobs });
-    const choose = (name) => (_event, cx) => {
-      this.profile = name;
-      this.profilesOpen = false;
-      cx.notify();
-    };
-    const start = (cx) => this.act({ cx, args: ["run", "up", worktree.branch, "-d", "--yes", ...(profile ? ["--profile", profile] : [])], cwd: repo.root });
-    const stop = (cx) => this.act({ cx, args: ["run", "down", worktree.branch], cwd: repo.root });
+  footer({ s, repo, worktree, repoName, profile, up, folder }) {
+    const about = { branch: worktree.branch, profile, repo: repoName };
+    const start = (cx) => this.act({ cx, args: ["run", "up", worktree.branch, "-d", "--yes", ...(profile ? ["--profile", profile] : [])], cwd: repo.root, toast: TOASTS.up, about });
+    const stop = (cx) => this.act({ cx, args: ["run", "down", worktree.branch], cwd: repo.root, toast: TOASTS.down, about });
     return v_flex()
       .border_t(1)
       .border_color(s.border)
-      .px(s.padding)
+      .p(s.cardPadding)
       .py(12)
-      .gap(8)
+      .gap(s.groupGap)
       .child(
         h_flex()
-          .gap(8)
+          .gap(s.groupGap)
           .items_center()
-          .when(this.profiles.length > 0, (el) =>
-            el.child(
-              h_flex()
-                .id("wtm-profile")
-                .flex_1()
-                .min_w(0)
-                .h(s.smallButtonHeight + 4)
-                .px(10)
-                .items_center()
-                .justify_between()
-                .rounded(s.buttonRadius)
-                .border(1)
-                .border_color(s.input)
-                .cursor_pointer()
-                .hover((h) => h.bg(s.hover))
-                .on_click((_event, cx) => {
-                  this.profilesOpen = !this.profilesOpen;
-                  cx.notify();
-                })
-                .child(div().truncate().child(profile ?? ""))
-                .child(svg(ICON.down).size(s.smallIconSize).text_color(s.muted)),
-            ),
-          )
+          .when(this.profiles.length > 0, (el) => el.child(this.profileSelect({ s, profile })))
           .when(this.profiles.length === 0, (el) => el.child(div().flex_1()))
-          .child(up ? outlineButton({ s, id: "down", label: s.labels.down, icon: ICON.stop, onClick: stop }) : outlineButton({ s, id: "up", label: s.labels.up, icon: ICON.play, onClick: start, primary: true }))
+          .child(up ? outlineButton({ s, id: "down", label: s.labels.stop, icon: ICON.stop, onClick: stop }) : outlineButton({ s, id: "up", label: s.labels.start, icon: ICON.play, onClick: start, primary: true }))
           .child(ghostIcon({ s, id: "logs", icon: ICON.logs, tooltip: s.labels.logs, onClick: () => openTerminal({ args: ["run", "logs", worktree.branch], folder }) })),
       )
       .when(this.profilesOpen, (el) =>
@@ -285,18 +234,23 @@ export class Pane {
             .rounded(s.buttonRadius)
             .border(1)
             .border_color(s.border)
+            .bg(s.popover)
             .children(
               this.profiles.map((option) =>
                 h_flex()
                   .id(`wtm-profile-${option.name}`)
                   .h(s.rowHeight)
-                  .px(8)
+                  .px(s.rowPadX)
                   .items_center()
                   .rounded(s.rowRadius)
                   .cursor_pointer()
                   .when(option.name === profile, (row) => row.bg(s.selected))
                   .hover((h) => h.bg(s.hover))
-                  .on_click(choose(option.name))
+                  .on_click((_event, cx) => {
+                    this.profile = option.name;
+                    this.profilesOpen = false;
+                    cx.notify();
+                  })
                   .child(option.name),
               ),
             ),
@@ -304,75 +258,121 @@ export class Pane {
       );
   }
 
-  stacks({ s, view }) {
-    const repos = this.shown.map((dir) => view.model.repos[dir]).filter(Boolean);
-    const groups = repos.map((repo) =>
-      v_flex()
-        .gap(2)
-        .child(groupLabel({ s, text: basename(repo.root) }))
-        .children(forest({ repo }).map((row) => this.stackRow({ s, repo, row, context: view.context }))),
-    );
-    return v_flex().gap(s.groupGap).child(groupLabel({ s, text: s.labels.stacks })).children(groups);
+  profileSelect({ s, profile }) {
+    return h_flex()
+      .id("wtm-profile")
+      .flex_1()
+      .min_w(0)
+      .h(s.selectHeight)
+      .px(s.buttonPadX)
+      .gap(6)
+      .items_center()
+      .rounded(s.buttonRadius)
+      .border(1)
+      .border_color(s.input)
+      .text_size(s.buttonTextSize)
+      .cursor_pointer()
+      .hover((h) => h.bg(s.hover))
+      .on_click((_event, cx) => {
+        this.profilesOpen = !this.profilesOpen;
+        cx.notify();
+      })
+      .child(div().flex_none().text_color(s.muted).child(s.labels.profile))
+      .child(div().flex_1().min_w(0).truncate().child(profile ?? ""))
+      .child(svg(ICON.down).size(s.smallIconSize).text_color(s.muted));
   }
 
-  stackRow({ s, repo, row, context }) {
+  stacks({ s, view }) {
+    const repos = this.shown.map((dir) => view.model.repos[dir]).filter(Boolean);
+    const total = repos.reduce((sum, repo) => sum + Object.keys(repo.worktrees).length, 0);
+    return v_flex()
+      .child(sectionHeader({ s, title: s.labels.stacks, meta: s.labels.stacksMeta(repos.length, total) }))
+      .children(repos.map((repo) => this.repoGroup({ s, repo, context: view.context })));
+  }
+
+  repoGroup({ s, repo, context }) {
+    const worktrees = Object.values(repo.worktrees);
+    const up = worktrees.reduce((sum, worktree) => sum + running({ jobs: worktree.jobs }), 0);
+    const header = h_flex()
+      .h(s.rowHeight)
+      .px(s.rowPadX)
+      .gap(8)
+      .items_center()
+      .font_medium()
+      .child(svg(ICON.folder).size(s.smallIconSize).text_color(s.muted))
+      .child(div().flex_1().min_w(0).truncate().child(basename(repo.root)))
+      .child(
+        h_flex()
+          .flex_none()
+          .gap(8)
+          .items_center()
+          .text_size(s.smallTextSize)
+          .text_color(s.muted)
+          .when(up > 0, (el) => el.child(dot({ s, color: s.running })).child(String(up)))
+          .child(s.labels.worktrees(worktrees.length)),
+      );
+    return v_flex()
+      .pb(10)
+      .child(header)
+      .children(forest({ repo }).map((row) => this.treeRow({ s, repo, row, context })));
+  }
+
+  treeRow({ s, repo, row, context }) {
     const worktree = repo.worktrees[row.branch];
     const current = context?.commonDir === repo.commonDir && context.branch === row.branch;
     const mark = worktree ? indicator({ worktree, tree: this.trees[repo.commonDir] }) : null;
     return h_flex()
       .id(`wtm-row-${repo.commonDir}-${row.branch}`)
-      .h(s.rowHeight)
-      .px(8)
-      .gap(8)
+      .h(s.treeRowHeight)
+      .pl(s.rowPadX + s.treeLead)
+      .pr(s.rowPadX)
       .items_center()
       .rounded(s.rowRadius)
       .when(current, (el) => el.bg(s.selected).font_medium())
       .when(!row.virtual, (el) => el.cursor_pointer().hover((h) => h.bg(s.hover)).on_click(() => goTo({ repo, branch: row.branch, path: row.path })))
-      .children(Array.from({ length: row.depth }, () => div().flex_none().w(s.indent).h_full().ml(4).border_l(1).border_color(s.border)))
-      .child(div().flex_1().min_w(0).truncate().text_color(row.virtual ? s.dim : s.foreground).child(row.branch))
+      .children(row.guides.map((continues) => guide({ s, continues })))
+      .when(row.depth > 0, (el) => el.child(elbow({ s, last: row.last })))
+      .child(div().flex_1().min_w(0).truncate().when(row.virtual, (d) => d.italic().text_color(s.dim)).child(row.branch))
       .when(Boolean(mark), (el) => el.child(indicatorView({ s, mark })));
   }
 
   elsewhere({ s, rows }) {
     const now = Date.now();
+    const total = rows.reduce((sum, row) => sum + row.running, 0);
     const header = h_flex()
       .id("wtm-elsewhere")
-      .h(s.labelHeight)
-      .px(8)
+      .h(s.sectionTitleHeight)
+      .mb(s.groupGap)
       .gap(6)
       .items_center()
       .cursor_pointer()
-      .text_size(s.smallTextSize)
-      .font_medium()
-      .text_color(s.muted)
       .on_click((_event, cx) => {
         this.elsewhereOpen = !this.elsewhereOpen;
         cx.notify();
       })
-      .child(svg(this.elsewhereOpen ? ICON.down : ICON.right).size(s.smallIconSize))
-      .child(s.labels.elsewhere)
-      .child(div().flex_1())
-      .child(countBadge({ s, count: rows.reduce((sum, row) => sum + row.running, 0) }));
+      .child(svg(this.elsewhereOpen ? ICON.down : ICON.right).size(s.tinyIconSize).text_color(s.muted))
+      .child(div().flex_1().text_size(s.sectionTitleSize).font_semibold().text_color(s.muted).child(s.labels.elsewhere))
+      .child(countBadge({ s, count: total }));
     return v_flex()
-      .gap(2)
       .child(header)
       .when(this.elsewhereOpen, (el) =>
         el.children(
           rows.map((row) => {
             const meta = [s.labels.jobs(row.running), age({ since: upSince({ ps: this.ps, path: row.path }), now })].filter(Boolean).join(" · ");
+            const about = { branch: row.branch, repo: basename(row.root) };
             return h_flex()
               .id(`wtm-else-${row.commonDir}-${row.branch}`)
               .h(s.rowHeight)
-              .px(8)
+              .px(s.rowPadX)
               .gap(8)
               .items_center()
               .rounded(s.rowRadius)
               .hover((h) => h.bg(s.hover))
               .child(dot({ s, color: s.running }))
               .child(div().flex_none().child(basename(row.root)))
-              .child(div().flex_1().min_w(0).truncate().text_color(s.muted).child(`· ${row.branch}`))
+              .child(div().flex_1().min_w(0).truncate().text_color(s.muted).child(row.branch))
               .child(div().flex_none().text_size(s.smallTextSize).text_color(s.muted).child(meta))
-              .child(ghostIcon({ s, id: `stop-${row.commonDir}-${row.branch}`, icon: ICON.stop, tooltip: s.labels.down, onClick: () => direct({ args: ["run", "down", row.branch], cwd: row.root }) }));
+              .child(ghostIcon({ s, id: `stop-${row.commonDir}-${row.branch}`, icon: ICON.stop, small: true, tooltip: s.labels.stop, onClick: (cx) => this.act({ cx, args: ["run", "down", row.branch], cwd: row.root, toast: TOASTS.down, about }) }));
           }),
         ),
       );
@@ -395,16 +395,14 @@ async function wtm({ args, cwd, timeout }) {
   }
 }
 
-// An action with no questions to ask: run hidden, say so only when it fails.
-export async function direct({ args, cwd, timeout = LONG_EXEC_MS }) {
+// An action with no questions to ask, run hidden: { ok, detail } for its toast.
+async function direct({ args, cwd }) {
   try {
-    const result = await exec(WTM_BIN, args, { cwd, timeout });
-    if (result.code === 0) return true;
-    notify({ title: NOTIFY_TITLE, body: result.stderr.trim() || `${WTM_BIN} ${args.join(" ")} exited ${result.code}`, level: "error" });
+    const result = await exec(WTM_BIN, args, { cwd, timeout: LONG_EXEC_MS });
+    return { ok: result.code === 0, detail: result.stderr.trim() || `${WTM_BIN} ${args.join(" ")} exited ${result.code}` };
   } catch (error) {
-    notify({ title: NOTIFY_TITLE, body: `${WTM_BIN} ${args.join(" ")}: ${error.message ?? error}`, level: "error" });
+    return { ok: false, detail: `${WTM_BIN} ${args.join(" ")}: ${error.message ?? error}` };
   }
-  return false;
 }
 
 // wtm's wizards ask questions: they run in a tab, which stays on a shell once
@@ -413,8 +411,12 @@ export function openTerminal({ args, folder }) {
   run("terminal.open", { argv: ["sh", "-c", `"$@"; exec "\${SHELL:-sh}"`, "sh", WTM_BIN, ...args], folder, place: "tab" });
 }
 
-export function openShellLine({ line, folder }) {
+function openShellLine({ line, folder }) {
   run("terminal.open", { argv: ["sh", "-c", `${line}; exec "\${SHELL:-sh}"`], folder, place: "tab" });
+}
+
+function openUrl(url) {
+  exec("open", [url]).catch((error) => notify({ title: NOTIFY_TITLE, body: `${url}: ${error.message ?? error}`, level: "error" }));
 }
 
 function goTo({ repo, branch, path }) {
@@ -428,15 +430,96 @@ function basename(path) {
   return (path ?? "").replace(/\/+$/, "").split("/").pop();
 }
 
-function problemAlert({ s, problem, index, folder }) {
+function sectionHeader({ s, title, meta }) {
   return h_flex()
-    .mx(8)
-    .mb(8)
-    .px(12)
-    .py(10)
+    .h(s.sectionTitleHeight)
+    .mb(s.groupGap)
+    .items_center()
+    .justify_between()
+    .child(div().text_size(s.sectionTitleSize).font_semibold().text_color(s.muted).child(title))
+    .when(Boolean(meta), (el) => el.child(div().text_size(s.smallTextSize).text_color(s.muted).truncate().child(meta)));
+}
+
+function subTitle({ s, title, meta }) {
+  return h_flex()
+    .px(s.cardPadding)
+    .pt(10)
+    .pb(4)
+    .justify_between()
+    .text_size(s.sectionTitleSize)
+    .font_semibold()
+    .text_color(s.dim)
+    .child(title)
+    .child(meta);
+}
+
+function guide({ s, continues }) {
+  return div()
+    .flex_none()
+    .relative()
+    .w(s.guideWidth)
+    .h(s.treeRowHeight)
+    .when(continues, (el) => el.child(div().absolute().left(8).top(0).h(s.treeRowHeight).border_l(1).border_color(s.guide)));
+}
+
+function elbow({ s, last }) {
+  const middle = s.treeRowHeight / 2;
+  return div()
+    .flex_none()
+    .relative()
+    .w(s.guideWidth)
+    .h(s.treeRowHeight)
+    .child(div().absolute().left(8).top(0).h(last ? middle : s.treeRowHeight).border_l(1).border_color(s.guide))
+    .child(div().absolute().left(8).top(middle).w(8).border_t(1).border_color(s.guide));
+}
+
+function serviceRow({ s, job }) {
+  const color = { [JOB_STATE.running]: s.running, [JOB_STATE.starting]: s.starting, [JOB_STATE.crashed]: s.crashed }[job.state] ?? s.stopped;
+  const off = !UP.has(job.state) && job.state !== JOB_STATE.crashed;
+  const detail = job.state === JOB_STATE.crashed ? s.labels.exit(job.exitCode) : off ? s.labels.stopped : (job.url ?? "").replace(/^https?:\/\//, "");
+  return h_flex()
+    .id(`wtm-job-${job.name}`)
+    .h(s.rowHeight)
+    .px(s.rowPadX)
     .gap(10)
     .items_center()
-    .rounded(10)
+    .rounded(s.rowRadius)
+    .hover((h) => h.bg(s.hover))
+    .text_color(off ? s.muted : s.foreground)
+    .child(dot({ s, color }))
+    .child(div().flex_none().child(job.name))
+    .when(job.shared, (el) => el.child(chip({ s, text: s.labels.shared })))
+    .child(div().flex_1().min_w(0).truncate().text_right().text_size(s.smallTextSize).text_color(job.state === JOB_STATE.crashed ? s.crashed : s.muted).child(detail))
+    .when(Boolean(job.url) && !off, (el) => el.child(ghostIcon({ s, id: `open-${job.name}`, icon: ICON.open, small: true, tooltip: job.url, onClick: () => openUrl(job.url) })));
+}
+
+function taskChip({ s, job }) {
+  const failed = job.state === JOB_STATE.crashed;
+  const busy = UP.has(job.state);
+  return h_flex()
+    .flex_none()
+    .h(s.chipHeight + 2)
+    .px(s.rowPadX)
+    .gap(5)
+    .items_center()
+    .rounded(s.rowRadius)
+    .bg(s.hover)
+    .text_size(s.smallTextSize)
+    .text_color(failed ? s.crashed : s.muted)
+    .when(failed && job.exitCode != null, (el) => el.tooltip(s.labels.exit(job.exitCode)))
+    .child(busy ? dot({ s, color: s.starting }) : svg(failed ? ICON.cross : ICON.check).size(s.tinyIconSize).text_color(failed ? s.crashed : s.running))
+    .child(job.name);
+}
+
+function problemAlert({ s, problem, index, folder }) {
+  return h_flex()
+    .mx(s.cardPadding)
+    .mb(12)
+    .px(s.alertPad.x)
+    .py(s.alertPad.y)
+    .gap(10)
+    .items_center()
+    .rounded(s.alertRadius)
     .border(1)
     .border_color(s.problem)
     .text_size(s.descriptionSize)
@@ -452,52 +535,13 @@ function problemAlert({ s, problem, index, folder }) {
     .child(outlineButton({ s, id: `fix-${index}`, label: s.labels.fix, tooltip: problem.fix, onClick: () => openShellLine({ line: problem.fix, folder }) }));
 }
 
-const SHOWN_STATES = new Set([JOB_STATE.running, JOB_STATE.starting, JOB_STATE.crashed]);
-
-function jobRow({ s, job }) {
-  const color = { [JOB_STATE.running]: s.running, [JOB_STATE.starting]: s.starting, [JOB_STATE.crashed]: s.crashed }[job.state] ?? s.stopped;
-  const stopped = !SHOWN_STATES.has(job.state);
-  const detail = job.state === JOB_STATE.crashed ? `${s.labels.exit} ${job.exitCode ?? "?"}` : stopped ? s.labels.stopped : job.url ?? "";
-  return h_flex()
-    .id(`wtm-job-${job.name}`)
-    .h(s.rowHeight)
-    .px(8)
-    .gap(10)
-    .items_center()
-    .rounded(s.rowRadius)
-    .hover((h) => h.bg(s.hover))
-    .text_color(stopped ? s.muted : s.foreground)
-    .child(dot({ s, color }))
-    .child(div().flex_none().child(job.name))
-    .when(job.shared, (el) => el.child(badge({ s, text: s.labels.shared })))
-    .child(div().flex_1().min_w(0).truncate().text_right().text_size(s.smallTextSize).text_color(job.state === JOB_STATE.crashed ? s.crashed : s.muted).child(detail))
-    .when(Boolean(job.url) && !stopped, (el) => el.child(ghostIcon({ s, id: `open-${job.name}`, icon: ICON.open, tooltip: job.url, onClick: () => exec("open", [job.url]) })));
-}
-
-function badge({ s, text, color }) {
-  return h_flex()
-    .flex_none()
-    .h(s.badgeHeight)
-    .px(8)
-    .gap(4)
-    .items_center()
-    .rounded(s.rowRadius)
-    .border(1)
-    .border_color(s.border)
-    .text_size(s.smallTextSize)
-    .font_medium()
-    .text_color(color ?? s.muted)
-    .when(Boolean(color), (el) => el.child(dot({ s, color })))
-    .child(text);
-}
-
 function blockedAlert({ s, status }) {
   return h_flex()
     .gap(10)
     .items_center()
-    .px(12)
-    .py(10)
-    .rounded(10)
+    .px(s.alertPad.x)
+    .py(s.alertPad.y)
+    .rounded(s.alertRadius)
     .border(1)
     .border_color(s.problem)
     .child(svg(ICON.alert).size(s.iconSize).text_color(s.problem))
@@ -505,65 +549,87 @@ function blockedAlert({ s, status }) {
     .child(outlineButton({ s, id: "retry", label: s.labels.retry, onClick: () => run(`${MOD}.${COMMAND.retry}`) }));
 }
 
-export function groupLabel({ s, text }) {
-  return h_flex().h(s.labelHeight).px(8).items_center().text_size(s.smallTextSize).font_medium().text_color(s.muted).child(text);
-}
-
-export function dot({ s, color }) {
+function dot({ s, color }) {
   return div().flex_none().size(s.dotSize).rounded_full().bg(color);
 }
 
+function chip({ s, id, text, color, dotted = false, onClick }) {
+  return h_flex()
+    .when(Boolean(id), (el) => el.id(`wtm-chip-${id}`))
+    .flex_none()
+    .h(s.chipHeight)
+    .px(7)
+    .gap(5)
+    .items_center()
+    .rounded(s.rowRadius)
+    .border(1)
+    .border_color(s.border)
+    .text_size(s.smallTextSize)
+    .text_color(color ?? s.muted)
+    .when(dotted, (el) => el.child(dot({ s, color })))
+    .when(Boolean(onClick), (el) => el.cursor_pointer().hover((h) => h.text_color(s.foreground)).on_click(() => onClick()))
+    .child(text);
+}
+
 function countBadge({ s, count }) {
-  return div().flex_none().h(18).min_w(18).px(5).rounded_full().bg(s.hover).text_size(11).text_color(s.foreground).flex().items_center().justify_center().child(String(count));
+  return div()
+    .flex_none()
+    .h(s.countHeight)
+    .min_w(s.countHeight)
+    .px(s.countPad)
+    .rounded_full()
+    .bg(s.selected)
+    .text_size(s.countTextSize)
+    .text_color(s.foreground)
+    .flex()
+    .items_center()
+    .justify_center()
+    .child(String(count));
 }
 
 function indicatorView({ s, mark }) {
   const color = { crashed: s.crashed, needsSync: s.needsSync, running: s.running }[mark.kind];
-  return h_flex()
-    .flex_none()
-    .gap(6)
-    .items_center()
-    .child(dot({ s, color }))
-    .when(mark.kind === "running", (el) => el.child(div().text_size(s.smallTextSize).text_color(s.muted).child(String(mark.count))));
+  const text = { crashed: s.labels.crashed, needsSync: s.labels.needsSync, running: String(mark.count) }[mark.kind];
+  return h_flex().flex_none().gap(6).items_center().text_size(s.smallTextSize).text_color(s.muted).child(dot({ s, color })).child(text);
 }
 
-export function ghostIcon({ s, id, icon, tooltip, onClick }) {
+function ghostIcon({ s, id, icon, tooltip, onClick, small = false }) {
   return div()
     .id(`wtm-${id}`)
     .flex_none()
-    .size(s.tinyButtonHeight + 4)
+    .size(small ? s.smallIconButton : s.iconButton)
     .flex()
     .items_center()
     .justify_center()
     .rounded(s.buttonRadius)
+    .text_color(s.muted)
     .cursor_pointer()
-    .hover((h) => h.bg(s.hover))
+    .hover((h) => h.bg(s.hover).text_color(s.foreground))
     .when(Boolean(tooltip), (el) => el.tooltip(tooltip))
     .on_click((_event, cx) => {
       cx.stop_propagation();
       onClick(cx);
     })
-    .child(svg(icon).size(s.iconSize));
+    .child(svg(icon).size(small ? s.smallIconSize : s.iconSize));
 }
 
-export function outlineButton({ s, id, label, icon, onClick, disabled = false, tooltip, count = 0, primary = false }) {
+function outlineButton({ s, id, label, icon, onClick, disabled = false, tooltip, count = 0, primary = false }) {
   return h_flex()
     .id(`wtm-${id}`)
     .flex_none()
-    .h(s.smallButtonHeight)
-    .px(10)
+    .h(s.buttonHeight)
+    .px(s.buttonPadX)
     .gap(6)
     .items_center()
     .rounded(s.buttonRadius)
-    .when(!primary, (el) => el.border(1).border_color(s.input))
+    .text_size(s.buttonTextSize)
+    .when(!primary, (el) => el.border(1).border_color(s.input).text_color(disabled ? s.dim : s.foreground))
     .when(primary, (el) => el.bg(s.primary).text_color(s.primaryForeground).font_medium())
-    .text_size(13)
-    .when(!primary, (el) => el.text_color(disabled ? s.dim : s.foreground))
     .when(Boolean(tooltip), (el) => el.tooltip(tooltip))
     .when(!disabled, (el) =>
       el
         .cursor_pointer()
-        .hover((h) => (primary ? h.opacity(0.9) : h.bg(s.hover)))
+        .hover((h) => (primary ? h.opacity(s.pressedOpacity) : h.bg(s.hover)))
         .on_click((_event, cx) => {
           cx.stop_propagation();
           onClick(cx);

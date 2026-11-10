@@ -16,6 +16,7 @@ Your worktrees, their stacks and their jobs, one click away.
 - **Prune, New, Exec, Env, Clean and Reparent** open the matching wtm command in a tab; Prune shows how many worktrees are finished.
 - **Each problem `wtm status` finds**, with a Fix button that runs its fix.
 - **Needs sync** on a worktree whose parent moved, with a Sync button.
+- **A notification when Up, Down or Sync starts and when it ends**, with wtm's error when it fails.
 
 ### Changed
 
