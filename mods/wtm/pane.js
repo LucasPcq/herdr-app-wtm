@@ -5,10 +5,10 @@
 import { div, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { exec, notify, props, run, shared, spaces, theme } from "herdr";
-import { COMMAND, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, WTM_BIN } from "./constants.js";
-import { decodePrune, decodePs, decodeTree } from "./decode.js";
+import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, WTM_BIN } from "./constants.js";
+import { decodeProfiles, decodePrune, decodePs, decodeStatus, decodeTree } from "./decode.js";
 import { EMPTY_MODEL } from "./model.js";
-import { actionRepo, age, contextOf, elsewhere, forest, indicator } from "./stacks.js";
+import { actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, running } from "./stacks.js";
 import { ICON, pane as paneStyle } from "./style.js";
 import { shownCommonDirs } from "./world.js";
 
@@ -28,6 +28,11 @@ export class Pane {
     this.ps = [];
     this.prune = 0;
     this.elsewhereOpen = true;
+    this.status = null;
+    this.profiles = [];
+    this.profile = null;
+    this.profilesOpen = false;
+    this.menuOpen = false;
     this.refresh(cx);
   }
 
@@ -48,13 +53,17 @@ export class Pane {
     cx.spawn(async (cx) => {
       this.shown = await shownCommonDirs({ cache: this.cache });
       cx.notify();
-      const { model, repo } = this.view();
+      const { model, repo, context } = this.view();
       const roots = this.shown.map((dir) => model.repos[dir]).filter(Boolean);
-      const [trees, ps, prune] = await Promise.all([
+      const [trees, ps, prune, status, profiles] = await Promise.all([
         loadTrees({ repos: roots, withPrs: false }),
         wtm({ args: ["run", "ps", "--output", "json"] }).then(decodePs),
         repo ? wtm({ args: ["prune", "--dry-run", "--no-fetch", "--yes", "--output", "json"], cwd: repo.root, timeout: LONG_EXEC_MS }).then(decodePrune) : 0,
+        context ? wtm({ args: ["status", context.branch, "--yes", "--output", "json"], cwd: repo.root }).then(decodeStatus) : null,
+        context ? wtm({ args: ["run", "list", "--output", "json"], cwd: repo.root }).then(decodeProfiles) : [],
       ]);
+      this.status = status;
+      this.profiles = profiles;
       this.trees = trees;
       this.ps = ps;
       this.prune = prune;
@@ -65,7 +74,7 @@ export class Pane {
     });
   }
 
-  render(cx) {
+  render(_cx) {
     const s = paneStyle(theme());
     const status = shared(SHARED.status) ?? null;
     const view = this.view();
@@ -80,12 +89,13 @@ export class Pane {
       .gap(s.sectionGap)
       .overflow_y_scrollbar()
       .when(BLOCKED.has(status?.state), (el) => el.child(blockedAlert({ s, status })))
-      .child(this.actions({ s, view, cx }))
+      .child(this.actions({ s, view }))
+      .when(Boolean(view.context), (el) => el.child(this.card({ s, view })))
       .child(this.stacks({ s, view }))
       .when(away.length > 0, (el) => el.child(this.elsewhere({ s, rows: away })));
   }
 
-  actions({ s, view, cx }) {
+  actions({ s, view }) {
     const repo = view.repo;
     const disabled = !repo;
     const tooltip = disabled ? s.labels.noRepo : null;
@@ -99,7 +109,193 @@ export class Pane {
       .child(outlineButton({ s, id: "prune", label: s.labels.prune, icon: ICON.scissors, onClick: open(["prune"]), disabled, tooltip, count: disabled ? 0 : this.prune }))
       .child(div().flex_1())
       .child(ghostIcon({ s, id: "resync", icon: ICON.resync, tooltip: s.labels.resync, onClick: () => run(`${MOD}.${COMMAND.sync}`) }))
-      .child(ghostIcon({ s, id: "refresh", icon: ICON.refresh, tooltip: s.labels.refresh, onClick: () => this.refresh(cx) }));
+      .child(ghostIcon({ s, id: "refresh", icon: ICON.refresh, tooltip: s.labels.refresh, onClick: (cx) => this.refresh(cx) }));
+  }
+
+  // A hidden action, then a refresh of what it may have changed.
+  act({ cx, args, cwd }) {
+    cx.spawn(async (cx) => {
+      await direct({ args, cwd });
+      this.refresh(cx);
+    });
+  }
+
+  card({ s, view }) {
+    const repo = view.repo;
+    const worktree = repo.worktrees[view.context.branch];
+    const jobs = Object.values(worktree.jobs).sort((a, b) => a.name.localeCompare(b.name));
+    const up = running({ jobs: worktree.jobs }) > 0;
+    const description = [basename(repo.root), worktree.parent && `${s.labels.from} ${worktree.parent}`, this.status?.isolation].filter(Boolean).join(" · ");
+    const header = h_flex()
+      .gap(12)
+      .px(s.padding)
+      .pt(s.padding)
+      .pb(12)
+      .items_start()
+      .child(
+        v_flex()
+          .flex_1()
+          .min_w(0)
+          .gap(6)
+          .child(h_flex().gap(8).items_center().text_size(s.titleSize).font_semibold().child(svg(ICON.branch).size(s.smallIconSize).text_color(s.muted)).child(div().truncate().child(worktree.branch)))
+          .child(div().text_size(s.descriptionSize).text_color(s.muted).child(description)),
+      )
+      .when(up, (el) => el.child(badge({ s, text: s.labels.running, color: s.running })))
+      .child(
+        ghostIcon({
+          s,
+          id: "menu",
+          icon: ICON.more,
+          onClick: (cx) => {
+            this.menuOpen = !this.menuOpen;
+            cx.notify();
+          },
+        }),
+      );
+    const card = v_flex()
+      .rounded(s.cardRadius)
+      .border(1)
+      .border_color(s.border)
+      .bg(s.card)
+      .overflow_hidden()
+      .child(header)
+      .when(this.menuOpen, (el) => el.child(this.menu({ s, repo, branch: worktree.branch })))
+      .child(this.stackLine({ s, repo, worktree }))
+      .children((this.status?.problems ?? []).map((problem, index) => problemAlert({ s, problem, index, folder: repo.root })))
+      .when(jobs.length > 0, (el) => el.child(v_flex().px(8).pb(8).children(jobs.map((job) => jobRow({ s, job })))))
+      .child(this.footer({ s, repo, worktree, up }));
+    return v_flex().gap(s.groupGap).child(groupLabel({ s, text: s.labels.context })).child(card);
+  }
+
+  menu({ s, repo, branch }) {
+    const item = ({ id, label, color, args }) =>
+      h_flex()
+        .id(`wtm-menu-${id}`)
+        .h(s.rowHeight)
+        .px(8)
+        .items_center()
+        .rounded(s.rowRadius)
+        .cursor_pointer()
+        .text_color(color)
+        .hover((h) => h.bg(s.hover))
+        .on_click((_event, cx) => {
+          this.menuOpen = false;
+          cx.notify();
+          openTerminal({ args, folder: repo.root });
+        })
+        .child(label);
+    return v_flex()
+      .mx(8)
+      .mb(8)
+      .p(4)
+      .rounded(s.buttonRadius)
+      .border(1)
+      .border_color(s.border)
+      .child(item({ id: "reparent", label: s.labels.reparent, color: s.foreground, args: ["reparent", branch] }))
+      .child(item({ id: "clean", label: s.labels.clean, color: s.crashed, args: ["clean", branch] }));
+  }
+
+  stackLine({ s, repo, worktree }) {
+    const entry = this.trees[repo.commonDir]?.[worktree.path];
+    if (!entry) return div();
+    const parts = [entry.ahead > 0 && `↑${entry.ahead}`, entry.dirty && s.labels.modified].filter(Boolean);
+    if (parts.length === 0 && !entry.pr && !entry.needsSync) return div();
+    return h_flex()
+      .px(s.padding)
+      .pb(12)
+      .gap(8)
+      .items_center()
+      .text_size(s.smallTextSize)
+      .text_color(s.muted)
+      .when(parts.length > 0, (el) => el.child(parts.join(" · ")))
+      .when(Boolean(entry.pr), (el) =>
+        el.child(
+          div()
+            .id("wtm-pr")
+            .cursor_pointer()
+            .hover((h) => h.text_color(s.foreground))
+            .when(Boolean(entry.pr.url), (d) => d.on_click(() => exec("open", [entry.pr.url])))
+            .child(`#${entry.pr.number}${entry.pr.state ? ` ${entry.pr.state.toLowerCase()}` : ""}`),
+        ),
+      )
+      .child(div().flex_1())
+      .when(entry.needsSync, (el) =>
+        el
+          .child(badge({ s, text: s.labels.needsSync, color: s.needsSync }))
+          .child(outlineButton({ s, id: "sync", label: s.labels.sync, onClick: (cx) => this.act({ cx, args: ["sync", worktree.branch, "--yes", "--no-push"], cwd: repo.root }) })),
+      );
+  }
+
+  footer({ s, repo, worktree, up }) {
+    const profile = this.profile ?? activeProfile({ profiles: this.profiles, jobs: worktree.jobs });
+    const choose = (name) => (_event, cx) => {
+      this.profile = name;
+      this.profilesOpen = false;
+      cx.notify();
+    };
+    const start = (cx) => this.act({ cx, args: ["run", "up", worktree.branch, "-d", "--yes", ...(profile ? ["--profile", profile] : [])], cwd: repo.root });
+    const stop = (cx) => this.act({ cx, args: ["run", "down", worktree.branch], cwd: repo.root });
+    return v_flex()
+      .border_t(1)
+      .border_color(s.border)
+      .px(s.padding)
+      .py(12)
+      .gap(8)
+      .child(
+        h_flex()
+          .gap(8)
+          .items_center()
+          .when(this.profiles.length > 0, (el) =>
+            el.child(
+              h_flex()
+                .id("wtm-profile")
+                .flex_1()
+                .min_w(0)
+                .h(s.smallButtonHeight + 4)
+                .px(10)
+                .items_center()
+                .justify_between()
+                .rounded(s.buttonRadius)
+                .border(1)
+                .border_color(s.input)
+                .cursor_pointer()
+                .hover((h) => h.bg(s.hover))
+                .on_click((_event, cx) => {
+                  this.profilesOpen = !this.profilesOpen;
+                  cx.notify();
+                })
+                .child(div().truncate().child(profile ?? ""))
+                .child(svg(ICON.down).size(s.smallIconSize).text_color(s.muted)),
+            ),
+          )
+          .when(this.profiles.length === 0, (el) => el.child(div().flex_1()))
+          .child(up ? outlineButton({ s, id: "down", label: s.labels.down, icon: ICON.stop, onClick: stop }) : outlineButton({ s, id: "up", label: s.labels.up, icon: ICON.play, onClick: start, primary: true }))
+          .child(ghostIcon({ s, id: "logs", icon: ICON.logs, tooltip: s.labels.logs, onClick: () => openTerminal({ args: ["run", "logs", worktree.branch], folder: repo.root }) })),
+      )
+      .when(this.profilesOpen, (el) =>
+        el.child(
+          v_flex()
+            .p(4)
+            .rounded(s.buttonRadius)
+            .border(1)
+            .border_color(s.border)
+            .children(
+              this.profiles.map((option) =>
+                h_flex()
+                  .id(`wtm-profile-${option.name}`)
+                  .h(s.rowHeight)
+                  .px(8)
+                  .items_center()
+                  .rounded(s.rowRadius)
+                  .cursor_pointer()
+                  .when(option.name === profile, (row) => row.bg(s.selected))
+                  .hover((h) => h.bg(s.hover))
+                  .on_click(choose(option.name))
+                  .child(option.name),
+              ),
+            ),
+        ),
+      );
   }
 
   stacks({ s, view }) {
@@ -227,6 +423,69 @@ function basename(path) {
   return (path ?? "").replace(/\/+$/, "").split("/").pop();
 }
 
+function problemAlert({ s, problem, index, folder }) {
+  return h_flex()
+    .mx(8)
+    .mb(8)
+    .px(12)
+    .py(10)
+    .gap(10)
+    .items_center()
+    .rounded(10)
+    .border(1)
+    .border_color(s.problem)
+    .text_size(s.descriptionSize)
+    .child(svg(ICON.alert).size(s.iconSize).text_color(s.problem))
+    .child(
+      v_flex()
+        .flex_1()
+        .min_w(0)
+        .gap(2)
+        .child(div().text_color(s.problem).font_medium().child(problem.message))
+        .child(div().truncate().text_color(s.muted).text_size(s.smallTextSize).child(problem.fix)),
+    )
+    .child(outlineButton({ s, id: `fix-${index}`, label: s.labels.fix, onClick: () => openShellLine({ line: problem.fix, folder }) }));
+}
+
+const SHOWN_STATES = new Set([JOB_STATE.running, JOB_STATE.starting, JOB_STATE.crashed]);
+
+function jobRow({ s, job }) {
+  const color = { [JOB_STATE.running]: s.running, [JOB_STATE.starting]: s.starting, [JOB_STATE.crashed]: s.crashed }[job.state] ?? s.stopped;
+  const stopped = !SHOWN_STATES.has(job.state);
+  const detail = job.state === JOB_STATE.crashed ? `${s.labels.exit} ${job.exitCode ?? "?"}` : stopped ? s.labels.stopped : job.url ?? "";
+  return h_flex()
+    .id(`wtm-job-${job.name}`)
+    .h(s.rowHeight)
+    .px(8)
+    .gap(10)
+    .items_center()
+    .rounded(s.rowRadius)
+    .hover((h) => h.bg(s.hover))
+    .text_color(stopped ? s.muted : s.foreground)
+    .child(dot({ s, color }))
+    .child(div().flex_none().child(job.name))
+    .when(job.shared, (el) => el.child(badge({ s, text: s.labels.shared })))
+    .child(div().flex_1().min_w(0).truncate().text_right().text_size(s.smallTextSize).text_color(job.state === JOB_STATE.crashed ? s.crashed : s.muted).child(detail))
+    .when(Boolean(job.url) && !stopped, (el) => el.child(ghostIcon({ s, id: `open-${job.name}`, icon: ICON.open, tooltip: job.url, onClick: () => exec("open", [job.url]) })));
+}
+
+function badge({ s, text, color }) {
+  return h_flex()
+    .flex_none()
+    .h(s.badgeHeight)
+    .px(8)
+    .gap(4)
+    .items_center()
+    .rounded(s.rowRadius)
+    .border(1)
+    .border_color(s.border)
+    .text_size(s.smallTextSize)
+    .font_medium()
+    .text_color(color ?? s.muted)
+    .when(Boolean(color), (el) => el.child(dot({ s, color })))
+    .child(text);
+}
+
 function blockedAlert({ s, status }) {
   return h_flex()
     .gap(10)
@@ -277,7 +536,7 @@ export function ghostIcon({ s, id, icon, tooltip, onClick }) {
     .when(Boolean(tooltip), (el) => el.tooltip(tooltip))
     .on_click((_event, cx) => {
       cx.stop_propagation();
-      onClick();
+      onClick(cx);
     })
     .child(svg(icon).size(s.iconSize));
 }
@@ -302,7 +561,7 @@ export function outlineButton({ s, id, label, icon, onClick, disabled = false, t
         .hover((h) => (primary ? h.opacity(0.9) : h.bg(s.hover)))
         .on_click((_event, cx) => {
           cx.stop_propagation();
-          onClick();
+          onClick(cx);
         }),
     )
     .when(Boolean(icon), (el) => el.child(svg(icon).size(s.smallIconSize)))
