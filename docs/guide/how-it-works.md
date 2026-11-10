@@ -1,6 +1,6 @@
 # How it works
 
-The mod never changes what wtm does. It follows wtm's event stream and opens or closes spaces as worktrees come and go.
+The mod never changes what wtm does. It follows wtm's event stream, opens or closes spaces as worktrees come and go, and shows your worktrees and their jobs in a pane the button opens.
 
 ## The worker
 
@@ -26,28 +26,37 @@ On `wtm clean` or `wtm prune`, a space closes when it was made on the removed wo
 
 ## Syncing what is already there
 
-Events only cover changes made while the worker runs. To catch up with worktrees created or removed before, double-click the button (or run `herdr-app do wtm.sync`):
+Events only cover changes made while the worker runs. To catch up with worktrees created or removed before, click **Resync spaces** in the pane (or run `herdr-app do wtm.sync`):
 
 - every local space whose folder and first terminal's folder are both gone closes — a removed worktree's, but also any other space on a deleted folder;
 - the stream restarts, and wtm sends a fresh list of every repository's worktrees: each one without a space opens, under the same rules as `wtm create`.
 
-The dot turns grey for the moment the stream restarts. Nothing is opened on its own when the app starts: only on a double-click.
+Nothing is opened on its own when the app starts: only on a resync.
 
 ## The button
 
-`● wtm` in the top bar, next to Files and Changes. The dot says the state:
+`wtm` with a branch icon in the top bar, drawn like Files and Changes. **A click opens the pane** on the right of the active tab; a click again closes it. The button is highlighted while the pane is open in the tab you look at.
 
-| Dot | Means |
-| --- | --- |
-| accent | syncing |
-| grey | starting, or restarting after the stream stopped |
-| red | sync is down; a notification said why: wtm not found, wtm too old, the stream stopped (an event newer than wtm), or an error |
+When sync is down (wtm not found, wtm too old, the stream stopped on an event newer than wtm, or an error), the icon turns red and a notification says why; the pane then shows the reason with a **Retry** button. Rest the pointer on the button for a tooltip saying the state.
 
-Rest the pointer on it for a tooltip saying the same, and what a click does. Click a red button to retry once the cause is fixed. While syncing, a double-click syncs what is already there. Otherwise a press drags it; Herdr remembers where you drop it.
+A press drags the button; Herdr remembers where you drop it. A drag can end in a click and toggle the pane.
+
+## The pane
+
+A pane beside your terminals, in the tab where you clicked. Top to bottom:
+
+- **Actions**: New, Exec, Env and Prune open the matching wtm command (`wtm create`, `wtm exec`, `wtm env`, `wtm prune`) in a new tab, which stays on a shell once it ends. Prune shows how many worktrees are finished. They act on the repository of the space holding the pane; in a space outside any wtm repository they act on the only repository the window shows, and are greyed out when it shows several. On the right: Resync spaces, and Refresh.
+- **This worktree**: the worktree of the space holding the pane (none outside a wtm repository). Its branch, where it came from and its isolation, and which profile runs; the `⋯` menu opens **Reparent**, **Logs** or **Clean** in a tab. Then chips for its commits ahead, uncommitted changes, pull request, and **needs sync** with a **Sync** button (`wtm sync <branch> --yes --no-push`) when its parent moved. Each problem `wtm status` finds, with a **Fix** button that runs its fix in a tab. Its **services** with their state and address; under a runner (a job that starts several apps), each app's address, a click away in the browser, and its **tasks** as chips (✓ done, ✕ failed). At the bottom, the profile (the one whose services all run, else the default), **Up** (`wtm run up <branch> -d --yes --profile <profile>`) or **Down** (`wtm run down <branch>`), and the logs. Up, Down and Sync show a notification when they start and when they end.
+- **Stacks**: every repository the window shows, as a group with its worktree and running-job counts, folded until you click it; each worktree is drawn under the one it came from, with tree lines; a parent with no worktree is greyed. One mark per row: red when a job crashed, amber when it needs sync, green with a count when jobs run. Click a row to go to its space, or open one.
+- **Running elsewhere**: worktrees of repositories the window does not show that still run jobs, how long, and a stop button.
+
+Job states change live, and the addresses and how long jobs have run are read again when a job starts or stops. The rest (problems, profiles, commits ahead, pull requests, the Prune count, how long jobs have run) is read when the pane opens and when you click Refresh or run an action from it.
 
 ## Limits
 
 - The button belongs to the layout it was opened in. On another layout, events wait until you come back, or run `herdr-app do mod.open '{"name":"wtm"}'` there too.
 - Local spaces only.
-- A worktree moved with `wtm relocate`, or created or removed while the worker was down, is not followed until a double-click on the button.
+- A worktree moved with `wtm relocate`, or created or removed while the worker was down, is not followed until a resync.
+- The pane opens as half of the pane beside it: drag its edge to resize it. Herdr gives a mod no way to set its width.
+- Opening a pull request or a job's address uses `open` (macOS).
 - A folder reached through a symlink (`/tmp` vs `/private/tmp`) may not match its space.

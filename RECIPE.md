@@ -1,23 +1,27 @@
 # wtm
 
-Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree created with `wtm create` opens as a space, one removed with `wtm clean` or `wtm prune` closes its space, whoever ran the command — and the focus never moves. A small floating pill says whether sync runs.
+Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree created with `wtm create` opens as a space, one removed with `wtm clean` or `wtm prune` closes its space, whoever ran the command — and the focus never moves. A button in the top bar opens a pane with your worktrees, their stacks and their jobs.
 
 ![wtm](preview.png)
 
 ## What you see
 
-- One window, drawn by the mod with `frame: "none"`, opened in the top bar just left of the `+` button (8 px from the top, its right edge 190 px from the window's): a button like Files and Changes — 52 × 26 px, 8 px side padding, radius 6, no border, background `chrome` (`hover` on hover, text then `foreground`), text `muted` at 12 px.
-- In it, a 6 px round dot and `wtm`: `accent` dot while syncing, `muted` while starting, `blocked` when sync is down (wtm not found, too old, stream stopped, error); the notification says which.
-- Resting the pointer on the pill shows a tooltip per state: what the dot means and what a click or double-click does (`style.js`'s `TOOLTIPS`).
-- Spaces appear in and leave the regular spaces sidebar; the mod draws nothing else.
+- One window, drawn by the mod with `frame: "none"`, opened in the top bar just left of the `+` button (8 px from the top, its right edge 190 px from the window's): a button like Files and Changes — 60 × 26 px, 8 px side padding, gap 5, radius 6, background `chrome` (`hover` on hover, text then `foreground`; `selected` while the pane is open in the active tab), text `muted` at 12 px.
+- In it, a 14 px Lucide git-branch icon and `wtm`; the icon turns `blocked` when sync is down (wtm not found, too old, stream stopped, error), and a notification says which.
+- Resting the pointer on the button shows a tooltip per state (`style.js`'s `TOOLTIPS`).
+- A click opens the pane on the right of the active tab, in shadcn's style on Herdr's theme colours: global actions (New, Exec, Env, Prune with a finished-worktrees count, Resync spaces, Refresh); the **This worktree** card (branch, origin, isolation, running-profile chip, `⋯` popup with Reparent / Logs / Clean, chips for ahead, modified, PR, needs sync + Sync, `wtm status` problems with Fix, services with state and address (a runner's apps and their addresses from `run ps`'s `held`), tasks as ✓/✕ chips, profile + Up/Down + Logs); **Stacks** (each shown repository as a group, folded by default, its worktrees under their parent with ├ └ │ lines, one mark per row: crashed, needs sync, running count); **Running elsewhere**. Up, Down, Sync and stop post a toast when they start and when they end.
+- Spaces appear in and leave the regular spaces sidebar.
 
 ## How it behaves
 
 - `worktree.created` in a repository the window shows (a local space's first terminal, or its folder, is in that repository): a space opens on the worktree, then the previously active space is selected again. Nothing happens for the main checkout, a folder already gone, or when a space is already inside the worktree.
 - `worktree.removed`: every local space whose first terminal (or folder) is inside the worktree closes, if the folder is gone and it is not the main checkout.
-- Double-clicking the pill while the dot is `accent` (or `herdr-app do wtm.sync`) syncs what is already there: every local space whose folder and first terminal's folder are both gone closes, then the worker restarts and each `snapshot` line, until `ready`, is replayed as a `worktree.created` per worktree. Snapshots are ignored otherwise.
-- Entering a blocked state posts one error notification with the cause and the fix. Clicking the pill then retries; otherwise presses drag it.
-- `herdr-app do wtm.stop` removes the worker and closes the pill.
+- The pane's Resync spaces button (or `herdr-app do wtm.sync`) syncs what is already there: every local space whose folder and first terminal's folder are both gone closes, then the worker restarts and each `snapshot` line, until `ready`, is replayed as a `worktree.created` per worktree. Snapshots are ignored otherwise.
+- Entering a blocked state posts one error notification with the cause and the fix; the pane shows it with a Retry button (`herdr-app do wtm.retry`).
+- A click toggles the pane in the active tab (`pane.split { direction: "right", mod: "wtm", props: { pane: true, tab } }` / `pane.close`). A press drags the button; a drag can end in a click that toggles the pane.
+- The pane's job states change live (every event folds into a model the service copy publishes with `setShared("wtm.model")`); `wtm status`, `tree` (then `--with-prs`), `run list`, `run ps` and `prune --dry-run --no-fetch` are read on open, on Refresh and after an action.
+- Interactive actions open a tab running `sh -c '"$@"; exec "${SHELL:-sh}"' sh wtm …` in the repository; Up, Down, Sync and stop run hidden with `exec` and notify on failure.
+- `herdr-app do wtm.stop` removes the worker and closes the button.
 - Agent statuses play no part.
 
 ## Built from
@@ -27,7 +31,8 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - Service copy (the kept window): `exec("which", ["wtm"])`, `wtm version --output json` (`events >= 1`), `mkdir -p ~/.local/state/herdr-app-wtm/inbox`, then `hc run --bg --name herdr-app-wtm --outlive-parent --label herdr-app-wtm.script=1 -- sh -c <script> sh <inbox> <wtm>`, reused while live with that label.
 - The script runs `cd / && wtm events --output json` and writes every non-empty line to `.tmp` then `mv` to `<n>.json` (`n` = seconds × 10⁶ + counter), then `{"type":"herdr-app-wtm.exit","code":N}`.
 - The mod `watchFolder`s the inbox (plus a 30 s fallback), claims each `<n>.json` by renaming it to `<n>.json.<copyId>.<ms>` (`mv`), reads it, acts, removes it. Claims older than a minute are released on start.
-- `spaces()`, `panes()`, `focused()`, `run("space.new" | "space.select" | "space.close")`, `notify`, `nextCommand` (`stop`, `sync`), `exec` for `git rev-parse --path-format=absolute --git-common-dir`, `test -e`, `mv`, `rm`.
+- A new service copy starts from the published `wtm.model`; with none, it restarts the worker once so wtm sends a snapshot.
+- `spaces()`, `panes()`, `focused()`, `shared`, `setShared`, `run("space.new" | "space.select" | "space.close" | "pane.split" | "pane.close" | "terminal.open")`, `notify`, `nextCommand` (`stop`, `sync`, `retry`), `exec` for `git rev-parse --path-format=absolute --git-common-dir`, `test -e`, `mv`, `rm`.
 - Exit codes 2 and 20 stop for good; others restart with 1 s → 30 s backoff, reset on `ready`.
 
 ## Watch out
@@ -37,15 +42,18 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - `exec` does not stream; `watchFolder` sees created and renamed entries but not appends, and seems to skip hidden folders: hence one file per event in a non-hidden folder.
 - `fs` writes only under `~/.config/herdr-app` and reads only inside home: use `exec` for the inbox's writes and for `test -e` on worktree paths.
 - `space.new` selects the new space: select the previous one right after.
-- Windows are placed by absolute `at` only, and a mod cannot read the window's size: measure it with a share-sized dialog. A popup ignores its height share (sized by content), `1` reads as one pixel, and Herdr keeps windows off the bottom edge, so a pill aimed at the status bar lands above it.
+- Windows are placed by absolute `at` only, and a mod cannot read the window's size: measure it with a share-sized dialog. A popup ignores its height share (sized by content), `1` reads as one pixel, and Herdr keeps windows off the bottom edge, so a button aimed at the status bar lands above it.
 - Two copies can run (two layouts, two clients): the rename-claim makes each event handled once.
+- The Files/Changes panel is part of Herdr's read-only layout: the pane is a mod pane in the active tab instead, and a mod cannot set its width (it halves the pane beside it).
+- Only the service copy reads the inbox, so the pane reads live data from `shared`, never from the inbox.
 
 ## Done when
 
 - `make check` and `make test` pass.
-- `herdr-app do mod.open '{"name":"wtm"}'` shows the button with an `accent` dot just left of `+`, and `hc get herdr-app-wtm` is live.
+- `herdr-app do mod.open '{"name":"wtm"}'` shows the button just left of `+`, and `hc get herdr-app-wtm` is live.
+- A click on the button opens the pane on the right; another closes it. In a worktree space, the card shows its branch and jobs; `wtm run up -d --yes` there turns its dots green without a refresh.
 - `wtm create x --yes` in a shell, in a repository the window shows, opens a space named `x` while `herdr-app status` keeps the same `space`.
 - `wtm clean x --yes` closes it.
-- With the worker killed (`hc kill herdr-app-wtm`), `wtm create y --yes` opens nothing; `herdr-app do wtm.sync` opens `y`, focus unchanged. Killed again, `wtm clean y --yes` then `herdr-app do wtm.sync` closes it.
-- Quitting and reopening the app brings the pill back, and syncing continues.
-- `herdr-app do wtm.stop` removes the pill and the `herdr-app-wtm` terminal.
+- With the worker killed (`hc kill herdr-app-wtm`), `wtm create y --yes` opens nothing; `herdr-app do wtm.sync` (or Resync spaces) opens `y`, focus unchanged. Killed again, `wtm clean y --yes` then `herdr-app do wtm.sync` closes it.
+- Quitting and reopening the app brings the button back, and syncing continues.
+- `herdr-app do wtm.stop` removes the button and the `herdr-app-wtm` terminal.

@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ## [Unreleased]
 
+Your worktrees, their stacks and their jobs, one click away.
+
+### Highlights
+
+- **A click on the `wtm` button opens the worktrees pane** beside your terminals: the current worktree, its jobs and problems, your stacks, what runs elsewhere. → [The pane](docs/guide/how-it-works.md#the-pane)
+- **Start and stop a worktree's stack** with Up and Down, on the profile you pick.
+
+### Added
+
+- **Prune, New, Exec, Env, Clean and Reparent** open the matching wtm command in a tab; Prune shows how many worktrees are finished.
+- **Each problem `wtm status` finds**, with a Fix button that runs its fix.
+- **Needs sync** on a worktree whose parent moved, with a Sync button.
+- **The address of every app a profile runs**, a click away in the browser.
+- **A notification when Up, Down or Sync starts and when it ends**, with wtm's error when it fails.
+
+### Changed
+
+- **The button** shows a branch icon like Files and Changes, and is highlighted while the pane is open.
+- **Resync spaces and Retry** are in the pane.
+
+### Removed
+
+- **The double-click on the button**: use Resync spaces in the pane, or `herdr-app do wtm.sync`.
+
 ## [0.2.0] - 2026-11-09
 
 Catch up with worktrees made or removed while the sync was not running.

@@ -22,7 +22,22 @@ export const EVENT = {
   removed: "worktree.removed",
   snapshot: "snapshot",
   ready: "ready",
+  updated: "worktree.updated",
+  reparented: "worktree.reparented",
+  relocated: "worktree.relocated",
+  repoAdded: "repo.added",
+  repoRemoved: "repo.removed",
+  jobStarted: "job.started",
+  jobStopped: "job.stopped",
+  jobExited: "job.exited",
+  jobCrashed: "job.crashed",
 };
+
+export const JOB_STATE = { starting: "starting", running: "running", crashed: "crashed", stopped: "stopped" };
+// `wtm run ps` statuses of a job that is up: detached (compose in the background), joined (a shared service).
+export const PS_UP = ["running", "starting", "detached", "joined"];
+// A runner's apps bind a moment after it starts: `run ps` is read again then.
+export const PS_SETTLE_MS = 5_000;
 // Written by the worker after wtm exits: {"type": EXIT_EVENT, "code": n}.
 export const EXIT_EVENT = "herdr-app-wtm.exit";
 // 2: invalid invocation; 20: an event of a schema newer than this wtm. No retry changes them.
@@ -49,18 +64,31 @@ export const STATE = {
   error: "error",
 };
 
-export const COMMAND = { stop: "stop", sync: "sync" };
+export const COMMAND = { stop: "stop", sync: "sync", retry: "retry" };
+
+// Keys of shared(): what the service copy publishes for the pane.
+export const SHARED = { model: "wtm.model", status: "wtm.status" };
 
 export const WTM_BIN = "wtm";
+// For wtm commands that may call GitHub, rebase or start a profile (exec defaults to 30 s).
+export const LONG_EXEC_MS = 600_000;
 export const NOTIFY_TITLE = "wtm";
 
-// Notification bodies, shown once when the pill enters a blocked state.
+// Notification bodies, shown once when sync enters a blocked state.
 export const MESSAGES = {
-  [STATE.wtmMissing]: "wtm is not on your PATH, so worktrees do not sync. Install it (brew install LucasPcq/tap/wtm), then click the wtm pill.",
-  [STATE.wtmTooOld]: "This wtm has no event stream. Upgrade it (wtm upgrade), then click the wtm pill.",
+  [STATE.wtmMissing]: "wtm is not on your PATH, so worktrees do not sync. Install it (brew install LucasPcq/tap/wtm), then click Retry in the wtm pane.",
+  [STATE.wtmTooOld]: "This wtm has no event stream. Upgrade it (wtm upgrade), then click Retry in the wtm pane.",
   stopped: (code) =>
     code === 20
-      ? "wtm received an event newer than itself and stopped. Upgrade wtm, then click the wtm pill."
-      : `wtm events stopped (exit ${code}). Click the wtm pill to start it again.`,
-  error: (detail) => `Worktree sync stopped: ${detail}. Click the wtm pill to retry.`,
+      ? "wtm received an event newer than itself and stopped. Upgrade wtm, then click Retry in the wtm pane."
+      : `wtm events stopped (exit ${code}). Click Retry in the wtm pane to start it again.`,
+  error: (detail) => `Worktree sync stopped: ${detail}. Click Retry in the wtm pane.`,
 };
+
+// Toasts for the pane's hidden actions: one when it starts, one when it ends.
+export const TOASTS = {
+  up: { start: ({ profile, branch }) => `Starting ${profile ?? "the default profile"} on ${branch}`, done: ({ profile, branch }) => `${profile ?? "Profile"} is up on ${branch}`, failed: ({ branch }) => `Up failed on ${branch}` },
+  down: { start: ({ branch }) => `Stopping the jobs of ${branch}`, done: ({ branch }) => `${branch} is down`, failed: ({ branch }) => `Down failed on ${branch}` },
+  sync: { start: ({ branch }) => `Rebasing ${branch} onto its parent`, done: ({ branch }) => `${branch} is in sync`, failed: ({ branch }) => `Sync failed on ${branch}` },
+};
+export const TOAST_MS = 4_000;
