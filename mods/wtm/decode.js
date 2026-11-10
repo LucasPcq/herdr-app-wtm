@@ -39,7 +39,7 @@ export function decodeProfiles(stdout) {
 export function decodePs(stdout) {
   return list(parseArray(stdout))
     .filter((job) => job?.name && job.branch)
-    .map((job) => ({ name: job.name, branch: job.branch, path: job.path ?? null, startedAt: Number.isNaN(Date.parse(job.started_at)) ? null : Date.parse(job.started_at) }));
+    .map((job) => ({ name: job.name, branch: job.branch, path: job.path ?? null, status: job.status ?? null, startedAt: Number.isNaN(Date.parse(job.started_at)) ? null : Date.parse(job.started_at) }));
 }
 
 export function decodePrune(stdout) {

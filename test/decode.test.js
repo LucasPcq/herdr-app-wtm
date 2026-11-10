@@ -29,8 +29,8 @@ test("decodeProfiles reads the profile key", () => {
 test("decodePs reads started_at", () => {
   const stdout = JSON.stringify([{ name: "api", status: "running", branch: "feat", path: "/w/feat", started_at: "2026-11-07T10:00:00Z" }, { name: "web", branch: "feat", path: "/w/feat" }]);
   assert.deepEqual(decodePs(stdout), [
-    { name: "api", branch: "feat", path: "/w/feat", startedAt: Date.parse("2026-11-07T10:00:00Z") },
-    { name: "web", branch: "feat", path: "/w/feat", startedAt: null },
+    { name: "api", branch: "feat", path: "/w/feat", status: "running", startedAt: Date.parse("2026-11-07T10:00:00Z") },
+    { name: "web", branch: "feat", path: "/w/feat", status: null, startedAt: null },
   ]);
 });
 
@@ -68,4 +68,8 @@ test("webUrl keeps http and https addresses only", () => {
 test("decodeStatus keeps only fixes that run wtm", () => {
   const stdout = JSON.stringify({ problems: [{ code: "a", message: "m", fix: "wtm env 'feat'" }, { code: "b", message: "m", fix: "rm -rf ~" }] });
   assert.deepEqual(decodeStatus(stdout).problems.map((problem) => problem.code), ["a"]);
+});
+
+test("decodePs keeps each job's status", () => {
+  assert.equal(decodePs(JSON.stringify([{ name: "a", branch: "x", path: "/x", status: "stopped" }]))[0].status, "stopped");
 });

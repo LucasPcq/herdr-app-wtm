@@ -6,11 +6,11 @@
 
 import { View, div, svg } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { closeOverlay, exec, focused, hc, home, nextCommand, notify, openOverlay, panes, props, run, setShared, theme, watchFolder } from "herdr";
+import { closeOverlay, exec, focused, hc, home, nextCommand, notify, openOverlay, panes, props, run, setShared, shared, theme, watchFolder } from "herdr";
 import * as fs from "fs/promises";
 import { anchor } from "./anchor.js";
 import { COMMAND, EVENT, EXIT_EVENT, FALLBACK_DRAIN_MS, INBOX_DIR, LAUNCH_TIMEOUT_MS, LAUNCHER_SHARE, MIN_EVENTS, MOD, NOTIFY_TITLE, SHARED, STATE, WINDOW_KEY, WTM_BIN } from "./constants.js";
-import { EMPTY_MODEL, reduce } from "./model.js";
+import { EMPTY_MODEL, reduce, seed } from "./model.js";
 import { createInbox } from "./inbox.js";
 import { BLOCKED, message, Pane } from "./pane.js";
 import { button } from "./style.js";
@@ -55,9 +55,11 @@ export default class Wtm extends View {
     this.draining = false;
     this.drainAgain = false;
     this.resyncing = false;
-    this.model = EMPTY_MODEL;
-    // A reused worker sends no snapshot: the first start restarts it so the model fills.
-    this.fresh = true;
+    // Events written while no copy ran wait in the inbox: the published model plus
+    // them is current. With none published, restart the worker for its snapshot.
+    const stored = seed(shared(SHARED.model));
+    this.model = stored ?? EMPTY_MODEL;
+    this.fresh = !stored;
     cx.spawn(async (cx) => this.start(cx));
     cx.spawn(async (cx) => this.listenForCommands(cx));
     cx.timer.every(FALLBACK_DRAIN_MS, (cx) => cx.spawn(async (cx) => this.check(cx)));

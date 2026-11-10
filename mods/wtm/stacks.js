@@ -55,13 +55,32 @@ export function contextOf({ model, folder }) {
   return { commonDir: best.commonDir, branch: best.branch };
 }
 
+// Where an action on the repository runs: the context worktree, else the main checkout.
+export function actionFolder({ repo, context }) {
+  if (context?.commonDir !== repo.commonDir) return repo.root;
+  return repo.worktrees[context.branch]?.path ?? repo.root;
+}
+
+// What the pane's on-demand data depends on: a change means a new refresh.
+export function refreshKey({ context, places }) {
+  return JSON.stringify([context?.commonDir ?? null, context?.branch ?? null, places]);
+}
+
+// When the jobs still running at a path started (`wtm run ps` also lists stopped ones).
+export function upSince({ ps, path }) {
+  const starts = ps.filter((job) => job.path === path && UP.has(job.status) && job.startedAt != null).map((job) => job.startedAt);
+  return starts.length > 0 ? Math.min(...starts) : null;
+}
+
 export function actionRepo({ context, shown }) {
   if (context) return context.commonDir;
   return shown.length === 1 ? shown[0] : null;
 }
 
 export function activeProfile({ profiles, jobs }) {
-  const up = profiles.find((profile) => profile.jobs.length > 0 && profile.jobs.every((name) => UP.has(jobs?.[name]?.state)));
+  // Tasks exit once done: a profile is up when its other jobs run.
+  const lasting = (profile) => profile.jobs.filter((name) => jobs?.[name]?.kind !== "task");
+  const up = profiles.find((profile) => lasting(profile).length > 0 && lasting(profile).every((name) => UP.has(jobs?.[name]?.state)));
   return (up ?? profiles.find((profile) => profile.default) ?? profiles[0])?.name ?? null;
 }
 

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { EMPTY_MODEL, reduce } from "../mods/wtm/model.js";
+import { EMPTY_MODEL, reduce, seed } from "../mods/wtm/model.js";
 
 const REPO = { root: "/dev/app", common_dir: "/dev/app/.git" };
 const FEAT = "/dev/app.worktrees/feat";
@@ -113,4 +113,12 @@ test("reduce never mutates its input", () => {
     reduce({ model, event: snapshot([]) });
     reduce({ model, event: { type: "repo.removed", repo: REPO } });
   });
+});
+
+test("seed takes a stored model, else the empty one", () => {
+  const stored = base();
+  assert.equal(seed(stored), stored);
+  assert.equal(seed(null), null);
+  assert.equal(seed({ repos: [] }), null);
+  assert.equal(seed("x"), null);
 });

@@ -31,7 +31,7 @@ Spaces follow [wtm](https://github.com/LucasPcq/wtm) worktrees: a worktree creat
 - Service copy (the kept window): `exec("which", ["wtm"])`, `wtm version --output json` (`events >= 1`), `mkdir -p ~/.local/state/herdr-app-wtm/inbox`, then `hc run --bg --name herdr-app-wtm --outlive-parent --label herdr-app-wtm.script=1 -- sh -c <script> sh <inbox> <wtm>`, reused while live with that label.
 - The script runs `cd / && wtm events --output json` and writes every non-empty line to `.tmp` then `mv` to `<n>.json` (`n` = seconds × 10⁶ + counter), then `{"type":"herdr-app-wtm.exit","code":N}`.
 - The mod `watchFolder`s the inbox (plus a 30 s fallback), claims each `<n>.json` by renaming it to `<n>.json.<copyId>.<ms>` (`mv`), reads it, acts, removes it. Claims older than a minute are released on start.
-- The service copy restarts the worker on its first start so wtm sends a fresh snapshot for the model.
+- A new service copy starts from the published `wtm.model`; with none, it restarts the worker once so wtm sends a snapshot.
 - `spaces()`, `panes()`, `focused()`, `shared`, `setShared`, `run("space.new" | "space.select" | "space.close" | "pane.split" | "pane.close" | "terminal.open")`, `notify`, `nextCommand` (`stop`, `sync`, `retry`), `exec` for `git rev-parse --path-format=absolute --git-common-dir`, `test -e`, `mv`, `rm`.
 - Exit codes 2 and 20 stop for good; others restart with 1 s → 30 s backoff, reset on `ready`.
 

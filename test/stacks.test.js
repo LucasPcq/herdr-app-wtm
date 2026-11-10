@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
+import { actionFolder, actionRepo, activeProfile, age, refreshKey, upSince, contextOf, elsewhere, forest, indicator, running } from "../mods/wtm/stacks.js";
 
 const wt = (branch, parent = null, jobs = {}, path = `/w/${branch}`) => ({ branch, path, parent, isMain: parent === null, jobs });
 const job = (name, state) => ({ name, kind: "service", state, url: null, shared: false, exitCode: null });
@@ -81,4 +81,38 @@ test("age reads minutes, hours, then days, and nothing without a start", () => {
   assert.equal(age({ since: now - 6 * 3_600_000, now }), "6 h");
   assert.equal(age({ since: now - 3 * 86_400_000, now }), "3 d");
   assert.equal(age({ since: null, now }), null);
+});
+
+test("actionFolder is the context worktree's folder, else the repository's", () => {
+  const repo = repoOf([wt("main", null, {}, "/dev/app"), wt("feat", "main", {}, "/w/feat")], "/dev/app");
+  assert.equal(actionFolder({ repo, context: { commonDir: "/dev/app/.git", branch: "feat" } }), "/w/feat");
+  assert.equal(actionFolder({ repo, context: null }), "/dev/app");
+  assert.equal(actionFolder({ repo, context: { commonDir: "/other/.git", branch: "feat" } }), "/dev/app");
+});
+
+test("activeProfile ignores tasks, which exit once done", () => {
+  const profiles = [
+    { name: "all", jobs: ["db", "migrate", "api", "web"], default: true },
+    { name: "api", jobs: ["db", "migrate", "api"], default: false },
+  ];
+  const jobs = { db: job("db", "running"), api: job("api", "running"), migrate: { ...job("migrate", "stopped"), kind: "task" } };
+  assert.equal(activeProfile({ profiles, jobs }), "api");
+});
+
+test("upSince is the earliest start among running jobs at a path", () => {
+  const ps = [
+    { name: "old", branch: "x", path: "/w/x", status: "stopped", startedAt: 1 },
+    { name: "api", branch: "x", path: "/w/x", status: "running", startedAt: 500 },
+    { name: "web", branch: "x", path: "/w/x", status: "running", startedAt: 300 },
+    { name: "y", branch: "y", path: "/w/y", status: "running", startedAt: 2 },
+  ];
+  assert.equal(upSince({ ps, path: "/w/x" }), 300);
+  assert.equal(upSince({ ps, path: "/w/z" }), null);
+});
+
+test("refreshKey changes with the context and with the spaces' places", () => {
+  const a = refreshKey({ context: { commonDir: "/a/.git", branch: "x" }, places: ["/a", "/b"] });
+  assert.equal(a, refreshKey({ context: { commonDir: "/a/.git", branch: "x" }, places: ["/a", "/b"] }));
+  assert.notEqual(a, refreshKey({ context: null, places: ["/a", "/b"] }));
+  assert.notEqual(a, refreshKey({ context: { commonDir: "/a/.git", branch: "x" }, places: ["/a"] }));
 });

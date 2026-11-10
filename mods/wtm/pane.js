@@ -8,7 +8,7 @@ import { exec, notify, props, run, shared, spaces, theme } from "herdr";
 import { COMMAND, JOB_STATE, LONG_EXEC_MS, MESSAGES, MOD, NOTIFY_TITLE, SHARED, STATE, WTM_BIN } from "./constants.js";
 import { decodeProfiles, decodePrune, decodePs, decodeStatus, decodeTree } from "./decode.js";
 import { EMPTY_MODEL } from "./model.js";
-import { actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, running } from "./stacks.js";
+import { actionFolder, actionRepo, activeProfile, age, contextOf, elsewhere, forest, indicator, refreshKey, running, upSince } from "./stacks.js";
 import { ICON, pane as paneStyle } from "./style.js";
 import { shownCommonDirs } from "./world.js";
 
@@ -21,7 +21,7 @@ export function message({ state, detail }) {
 }
 
 export class Pane {
-  init(cx) {
+  init(_cx) {
     this.cache = new Map();
     this.shown = [];
     this.trees = {};
@@ -33,7 +33,7 @@ export class Pane {
     this.profile = null;
     this.profilesOpen = false;
     this.menuOpen = false;
-    this.refresh(cx);
+    this.key = null;
   }
 
   folder() {
@@ -46,7 +46,8 @@ export class Pane {
     const model = shared(SHARED.model) ?? EMPTY_MODEL;
     const context = contextOf({ model, folder: this.folder() });
     const repoDir = actionRepo({ context, shown: this.shown.filter((dir) => model.repos[dir]) });
-    return { model, context, repo: repoDir ? model.repos[repoDir] : null };
+    const repo = repoDir ? model.repos[repoDir] : null;
+    return { model, context, repo, folder: repo ? actionFolder({ repo, context }) : null };
   }
 
   refresh(cx) {
@@ -74,10 +75,15 @@ export class Pane {
     });
   }
 
-  render(_cx) {
+  render(cx) {
     const s = paneStyle(theme());
     const status = shared(SHARED.status) ?? null;
     const view = this.view();
+    const key = refreshKey({ context: view.context, places: spaces().filter((space) => space.machine == null).map((space) => space.folder) });
+    if (key !== this.key) {
+      this.key = key;
+      this.refresh(cx);
+    }
     const away = elsewhere({ model: view.model, shown: this.shown });
     return v_flex()
       .id("wtm-pane")
@@ -99,7 +105,7 @@ export class Pane {
     const repo = view.repo;
     const disabled = !repo;
     const tooltip = disabled ? s.labels.noRepo : null;
-    const open = (args) => () => openTerminal({ args, folder: repo.root });
+    const open = (args) => () => openTerminal({ args, folder: view.folder });
     return h_flex()
       .gap(s.groupGap)
       .items_center()
@@ -159,15 +165,15 @@ export class Pane {
       .bg(s.card)
       .overflow_hidden()
       .child(header)
-      .when(this.menuOpen, (el) => el.child(this.menu({ s, repo, branch: worktree.branch })))
+      .when(this.menuOpen, (el) => el.child(this.menu({ s, folder: view.folder, branch: worktree.branch })))
       .child(this.stackLine({ s, repo, worktree }))
-      .children((this.status?.problems ?? []).map((problem, index) => problemAlert({ s, problem, index, folder: repo.root })))
+      .children((this.status?.problems ?? []).map((problem, index) => problemAlert({ s, problem, index, folder: view.folder })))
       .when(jobs.length > 0, (el) => el.child(v_flex().px(8).pb(8).children(jobs.map((job) => jobRow({ s, job })))))
-      .child(this.footer({ s, repo, worktree, up }));
+      .child(this.footer({ s, repo, worktree, up, folder: view.folder }));
     return v_flex().gap(s.groupGap).child(groupLabel({ s, text: s.labels.context })).child(card);
   }
 
-  menu({ s, repo, branch }) {
+  menu({ s, folder, branch }) {
     const item = ({ id, label, color, args }) =>
       h_flex()
         .id(`wtm-menu-${id}`)
@@ -181,7 +187,7 @@ export class Pane {
         .on_click((_event, cx) => {
           this.menuOpen = false;
           cx.notify();
-          openTerminal({ args, folder: repo.root });
+          openTerminal({ args, folder });
         })
         .child(label);
     return v_flex()
@@ -226,7 +232,7 @@ export class Pane {
       );
   }
 
-  footer({ s, repo, worktree, up }) {
+  footer({ s, repo, worktree, up, folder }) {
     const profile = this.profile ?? activeProfile({ profiles: this.profiles, jobs: worktree.jobs });
     const choose = (name) => (_event, cx) => {
       this.profile = name;
@@ -270,7 +276,7 @@ export class Pane {
           )
           .when(this.profiles.length === 0, (el) => el.child(div().flex_1()))
           .child(up ? outlineButton({ s, id: "down", label: s.labels.down, icon: ICON.stop, onClick: stop }) : outlineButton({ s, id: "up", label: s.labels.up, icon: ICON.play, onClick: start, primary: true }))
-          .child(ghostIcon({ s, id: "logs", icon: ICON.logs, tooltip: s.labels.logs, onClick: () => openTerminal({ args: ["run", "logs", worktree.branch], folder: repo.root }) })),
+          .child(ghostIcon({ s, id: "logs", icon: ICON.logs, tooltip: s.labels.logs, onClick: () => openTerminal({ args: ["run", "logs", worktree.branch], folder }) })),
       )
       .when(this.profilesOpen, (el) =>
         el.child(
@@ -353,8 +359,7 @@ export class Pane {
       .when(this.elsewhereOpen, (el) =>
         el.children(
           rows.map((row) => {
-            const since = this.ps.filter((job) => job.path === row.path && job.startedAt != null).reduce((min, job) => Math.min(min, job.startedAt), Infinity);
-            const meta = [s.labels.jobs(row.running), age({ since: since === Infinity ? null : since, now })].filter(Boolean).join(" · ");
+            const meta = [s.labels.jobs(row.running), age({ since: upSince({ ps: this.ps, path: row.path }), now })].filter(Boolean).join(" · ");
             return h_flex()
               .id(`wtm-else-${row.commonDir}-${row.branch}`)
               .h(s.rowHeight)

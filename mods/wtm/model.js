@@ -6,6 +6,12 @@ import { webUrl } from "./decode.js";
 
 export const EMPTY_MODEL = { repos: {} };
 
+// The model a previous copy published (shared() persists), or null.
+export function seed(stored) {
+  const repos = stored?.repos;
+  return repos && typeof repos === "object" && !Array.isArray(repos) ? stored : null;
+}
+
 const UPSERTS = new Set([EVENT.created, EVENT.updated, EVENT.reparented, EVENT.relocated]);
 const JOB_STATES = {
   [EVENT.jobStarted]: JOB_STATE.running,
